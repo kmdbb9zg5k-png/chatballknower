@@ -20,17 +20,21 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
 
     video.currentTime = 0;
     video.muted = false;
+    video.volume = 1;
     setIsMuted(false);
     setAutoplayBlocked(false);
 
     const attempt = video.play();
     if (attempt) {
       attempt.catch(() => {
-        // Browsers commonly block autoplay with sound. Fall back to muted
-        // autoplay, then let the user unmute with one click.
-        video.muted = true;
-        setIsMuted(true);
-        video.play().catch(() => setAutoplayBlocked(true));
+        // Never silently fall back to muted playback. On browsers such as
+        // iPhone Safari that block autoplay with sound, wait for one user tap
+        // and then play the intro loudly with audio enabled.
+        video.pause();
+        video.muted = false;
+        video.volume = 1;
+        setIsMuted(false);
+        setAutoplayBlocked(true);
       });
     }
   }, [isOpen]);
@@ -41,28 +45,29 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     const video = videoRef.current;
     if (!video) return;
     video.muted = !video.muted;
+    video.volume = 1;
     setIsMuted(video.muted);
-    if (video.paused) video.play().catch(() => {});
+    if (video.paused) video.play().catch(() => setAutoplayBlocked(true));
   };
 
   const restart = () => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = 0;
-    video.play().catch(() => {});
+    video.muted = false;
+    video.volume = 1;
+    setIsMuted(false);
+    video.play().catch(() => setAutoplayBlocked(true));
   };
 
   const manualPlay = () => {
     const video = videoRef.current;
     if (!video) return;
     video.muted = false;
+    video.volume = 1;
     setIsMuted(false);
     setAutoplayBlocked(false);
-    video.play().catch(() => {
-      video.muted = true;
-      setIsMuted(true);
-      video.play().catch(() => setAutoplayBlocked(true));
-    });
+    video.play().catch(() => setAutoplayBlocked(true));
   };
 
   return (
@@ -107,9 +112,9 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
       {autoplayBlocked && (
         <button
           onClick={manualPlay}
-          className="relative z-20 rounded-md border border-[#D4AF37]/50 bg-black/80 px-7 py-4 text-sm font-black uppercase tracking-widest text-[#D4AF37]"
+          className="relative z-20 rounded-md border border-[#D4AF37]/50 bg-black/85 px-7 py-4 text-sm font-black uppercase tracking-widest text-[#D4AF37] shadow-[0_0_35px_rgba(212,175,55,0.18)]"
         >
-          Play Ball Knower Intro
+          Play Intro With Sound
         </button>
       )}
     </div>

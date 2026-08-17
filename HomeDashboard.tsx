@@ -95,27 +95,27 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 
       {/* User's Leagues Section */}
       <section className="mx-auto max-w-5xl px-4 sm:px-8 pt-10">
-        <div className="flex items-center justify-between mb-6 pb-3 border-b border-white/5">
-          <div>
-            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-[#D4AF37]" />
+        <div className="flex flex-col gap-4 mb-6 pb-4 border-b border-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="min-w-0">
+            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2 leading-none">
+              <Trophy className="h-5 w-5 shrink-0 text-[#D4AF37]" />
               <span>YOUR LEAGUES</span>
             </h2>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold mt-0.5">
-              Active draft-order tournaments & simulations
+            <p className="text-[10px] sm:text-[11px] text-zinc-500 uppercase tracking-[0.16em] font-bold mt-2 leading-relaxed">
+              Active leagues & simulations
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:shrink-0">
             <button
               onClick={onOpenCreateLeague}
-              className="rounded-sm border border-white/10 bg-[#1A1A1A] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-zinc-200 hover:bg-zinc-800 transition-colors"
+              className="w-full sm:w-auto min-h-[48px] flex items-center justify-center rounded-md border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-[#E7C95F] hover:bg-[#D4AF37]/20 transition-colors"
             >
               + Create
             </button>
             <button
               onClick={onOpenJoinLeague}
-              className="rounded-sm border border-white/10 bg-[#1A1A1A] px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-zinc-200 hover:bg-zinc-800 transition-colors"
+              className="w-full sm:w-auto min-h-[48px] flex items-center justify-center rounded-md border border-white/10 bg-[#1A1A1A] px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-200 hover:bg-zinc-800 hover:border-white/20 transition-colors"
             >
               Join Code
             </button>

@@ -4,208 +4,44 @@ import { PLAYERS_DATABASE } from './players';
 
 export type SoloGroup='QB'|'RB'|'WR'|'TE'|'OL'|'DL_EDGE'|'LB'|'CB'|'S'|'K'|'P';
 
-export interface ChemistryResult {
-  score:number;
-  offenseBonus:number;
-  defenseBonus:number;
-  tags:string[];
-  note:string;
-}
-
-export interface SeasonStatRow {
-  playerId:string;
-  name:string;
-  position:string;
-  games:number;
-  fantasy:number;
-  passYds:number;
-  passTD:number;
-  interceptions:number;
-  rushYds:number;
-  rushTD:number;
-  receptions:number;
-  recYds:number;
-  recTD:number;
-  tackles:number;
-  sacks:number;
-  picks:number;
-  fgMade:number;
-  fgAtt:number;
-}
-
-export interface Storyline {
-  id:string;
-  week:number;
-  tag:string;
-  headline:string;
-  deck:string;
-  tone:'gold'|'green'|'red'|'blue';
-}
-
-export interface SoloTradeOffer {
-  id:string;
-  week:number;
-  incoming:Player;
-  outgoing:Player;
-  capDelta:number;
-  reason:string;
-  expiresAfterWeek:number;
-}
-
-export interface SimLeagueLeader {
-  category:string;
-  value:string;
-  name:string;
-  team:string;
-  isUser:boolean;
-}
-
-export interface MvpCandidate {
-  name:string;
-  team:string;
-  position:string;
-  score:number;
-  isUser:boolean;
-}
+export interface ChemistryResult { score:number; offenseBonus:number; defenseBonus:number; tags:string[]; note:string; }
+export interface SeasonStatRow { playerId:string; name:string; position:string; games:number; fantasy:number; passYds:number; passTD:number; interceptions:number; rushYds:number; rushTD:number; receptions:number; recYds:number; recTD:number; tackles:number; sacks:number; picks:number; fgMade:number; fgAtt:number; }
+export interface Storyline { id:string; week:number; tag:string; headline:string; deck:string; tone:'gold'|'green'|'red'|'blue'; }
+export interface SoloTradeOffer { id:string; week:number; incoming:Player; outgoing:Player; capDelta:number; reason:string; expiresAfterWeek:number; }
+export interface SimLeagueLeader { category:string; value:string; name:string; team:string; isUser:boolean; }
+export interface MvpCandidate { name:string; team:string; position:string; score:number; isUser:boolean; }
 
 export function soloGroupOf(p:Player):SoloGroup {
-  if(p.position==='QB')return 'QB';
-  if(p.position==='RB'||p.position==='FB')return 'RB';
-  if(p.position==='WR')return 'WR';
-  if(p.position==='TE')return 'TE';
-  if(['OT','LT','RT','OG','LG','RG','C'].includes(p.position))return 'OL';
-  if(['EDGE','DT','DE','NT'].includes(p.position))return 'DL_EDGE';
-  if(p.position==='LB')return 'LB';
-  if(p.position==='CB')return 'CB';
-  if(['S','FS','SS'].includes(p.position))return 'S';
-  if(p.position==='K')return 'K';
-  return 'P';
+  if(p.position==='QB')return 'QB'; if(p.position==='RB'||p.position==='FB')return 'RB'; if(p.position==='WR')return 'WR'; if(p.position==='TE')return 'TE';
+  if(['OT','LT','RT','OG','LG','RG','C'].includes(p.position))return 'OL'; if(['EDGE','DT','DE','NT'].includes(p.position))return 'DL_EDGE'; if(p.position==='LB')return 'LB'; if(p.position==='CB')return 'CB'; if(['S','FS','SS'].includes(p.position))return 'S'; if(p.position==='K')return 'K'; return 'P';
 }
-
 const avg=(ps:Player[])=>ps.length?ps.reduce((n,p)=>n+p.ovr,0)/ps.length:70;
 const clamp=(n:number,a=0,b=99)=>Math.max(a,Math.min(b,n));
 function seeded(seed:number){let x=seed|0;return()=>{x=Math.imul(x^x>>>15,1|x);x^=x+Math.imul(x^x>>>7,61|x);return((x^x>>>14)>>>0)/4294967296};}
 function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0;}
 
 export function calculateChemistry(starters:Player[],bench:Player[]=[]):ChemistryResult {
-  const qb=starters.filter(p=>soloGroupOf(p)==='QB');
-  const rb=starters.filter(p=>soloGroupOf(p)==='RB');
-  const targets=starters.filter(p=>['WR','TE'].includes(soloGroupOf(p)));
-  const ol=starters.filter(p=>soloGroupOf(p)==='OL');
-  const front=starters.filter(p=>['DL_EDGE','LB'].includes(soloGroupOf(p)));
-  const back=starters.filter(p=>['CB','S'].includes(soloGroupOf(p));
-  const all=[...starters,...bench];
-  let off=0,def=0; const tags:string[]=[];
-  const qbO=avg(qb),rbO=avg(rb),targetO=avg(targets.sort((a,b)=>b.ovr-a.ovr).slice(0,3)),olO=avg(ol),frontO=avg(front),backO=avg(back);
-
-  if(qbO>=88&&targetO>=87){off+=2;tags.push('QB + WEAPONS');}
-  if(qbO>=92&&targetO>=91){off+=1;tags.push('ELITE AIR ATTACK');}
-  if(rbO>=87&&olO>=84){off+=2;tags.push('RUN GAME FIT');}
-  if(olO>=88){off+=1;tags.push('TRENCH WALL');}
-  if(frontO>=87){def+=2;tags.push('FRONT-SEVEN HEAT');}
-  if(backO>=87){def+=2;tags.push('NO-FLY ZONE');}
-  if(frontO>=86&&backO>=86){def+=1;tags.push('COMPLETE DEFENSE');}
-  const depth=avg(bench);
-  if(bench.length>=8&&depth>=80){off+=1;def+=1;tags.push('REAL DEPTH');}
-  const spread=Math.max(...all.map(p=>p.ovr),70)-Math.min(...all.map(p=>p.ovr),70);
-  if(all.length>=20&&spread<=22){off+=1;def+=1;tags.push('BALANCED BUILD');}
-
-  const score=Math.round(clamp(48+(off+def)*6+(depth-75)*.35,35,99));
-  return {score,offenseBonus:off,defenseBonus:def,tags:tags.slice(0,5),note:score>=88?'Roster pieces amplify each other.':score>=75?'Solid fit with a few real synergies.':'Talent is there, but the pieces do not fully complement each other yet.'};
+  const qb=starters.filter(p=>soloGroupOf(p)==='QB'); const rb=starters.filter(p=>soloGroupOf(p)==='RB'); const targets=starters.filter(p=>['WR','TE'].includes(soloGroupOf(p))); const ol=starters.filter(p=>soloGroupOf(p)==='OL'); const front=starters.filter(p=>['DL_EDGE','LB'].includes(soloGroupOf(p))); const back=starters.filter(p=>['CB','S'].includes(soloGroupOf(p))); const all=[...starters,...bench];
+  let off=0,def=0; const tags:string[]=[]; const qbO=avg(qb),rbO=avg(rb),targetO=avg([...targets].sort((a,b)=>b.ovr-a.ovr).slice(0,3)),olO=avg(ol),frontO=avg(front),backO=avg(back);
+  if(qbO>=88&&targetO>=87){off+=2;tags.push('QB + WEAPONS');} if(qbO>=92&&targetO>=91){off+=1;tags.push('ELITE AIR ATTACK');} if(rbO>=87&&olO>=84){off+=2;tags.push('RUN GAME FIT');} if(olO>=88){off+=1;tags.push('TRENCH WALL');} if(frontO>=87){def+=2;tags.push('FRONT-SEVEN HEAT');} if(backO>=87){def+=2;tags.push('NO-FLY ZONE');} if(frontO>=86&&backO>=86){def+=1;tags.push('COMPLETE DEFENSE');}
+  const depth=avg(bench); if(bench.length>=8&&depth>=80){off+=1;def+=1;tags.push('REAL DEPTH');} const spread=all.length?Math.max(...all.map(p=>p.ovr))-Math.min(...all.map(p=>p.ovr)):0; if(all.length>=20&&spread<=22){off+=1;def+=1;tags.push('BALANCED BUILD');}
+  const score=Math.round(clamp(48+(off+def)*6+(depth-75)*.35,35,99)); return {score,offenseBonus:off,defenseBonus:def,tags:tags.slice(0,5),note:score>=88?'Roster pieces amplify each other.':score>=75?'Solid fit with a few real synergies.':'Talent is there, but the pieces do not fully complement each other yet.'};
 }
 
-export function applyChemistry(r:TeamRatings,c:ChemistryResult):TeamRatings {
-  const o=c.offenseBonus,d=c.defenseBonus;
-  return {...r,
-    overall:Math.round(clamp(r.overall+(o+d)*.32,0,99)),
-    offense:Math.round(clamp(r.offense+o,0,99)),
-    defense:Math.round(clamp(r.defense+d,0,99)),
-    passing:Math.round(clamp(r.passing+Math.ceil(o*.65),0,99)),
-    rushing:Math.round(clamp(r.rushing+Math.ceil(o*.55),0,99)),
-    passProtection:Math.round(clamp(r.passProtection+Math.floor(o*.45),0,99)),
-    runBlocking:Math.round(clamp(r.runBlocking+Math.floor(o*.45),0,99)),
-    passRush:Math.round(clamp(r.passRush+Math.ceil(d*.55),0,99)),
-    runDefense:Math.round(clamp(r.runDefense+Math.floor(d*.45),0,99)),
-    coverage:Math.round(clamp(r.coverage+Math.ceil(d*.6),0,99)),
-    strengths:[...new Set([...(r.strengths||[]),...c.tags])],
-  };
-}
+export function applyChemistry(r:TeamRatings,c:ChemistryResult):TeamRatings { const o=c.offenseBonus,d=c.defenseBonus; return {...r,overall:Math.round(clamp(r.overall+(o+d)*.32,0,99)),offense:Math.round(clamp(r.offense+o,0,99)),defense:Math.round(clamp(r.defense+d,0,99)),passing:Math.round(clamp(r.passing+Math.ceil(o*.65),0,99)),rushing:Math.round(clamp(r.rushing+Math.ceil(o*.55),0,99)),passProtection:Math.round(clamp(r.passProtection+Math.floor(o*.45),0,99)),runBlocking:Math.round(clamp(r.runBlocking+Math.floor(o*.45),0,99)),passRush:Math.round(clamp(r.passRush+Math.ceil(d*.55),0,99)),runDefense:Math.round(clamp(r.runDefense+Math.floor(d*.45),0,99)),coverage:Math.round(clamp(r.coverage+Math.ceil(d*.6),0,99)),strengths:[...new Set([...(r.strengths||[]),...c.tags])]}; }
 
-export function aggregateSeasonStats(lines:PlayerLine[]):SeasonStatRow[] {
-  const m=new Map<string,SeasonStatRow>();
-  for(const l of lines){
-    const x=m.get(l.playerId)||{playerId:l.playerId,name:l.name,position:l.position,games:0,fantasy:0,passYds:0,passTD:0,interceptions:0,rushYds:0,rushTD:0,receptions:0,recYds:0,recTD:0,tackles:0,sacks:0,picks:0,fgMade:0,fgAtt:0};
-    x.games+=1;x.fantasy+=Number(l.fantasyScore||0);x.passYds+=Number(l.passYds||0);x.passTD+=Number(l.passTD||0);x.interceptions+=Number(l.interceptions||0);x.rushYds+=Number(l.rushYds||0);x.rushTD+=Number(l.rushTD||0);x.receptions+=Number(l.receptions||0);x.recYds+=Number(l.recYds||0);x.recTD+=Number(l.recTD||0);x.tackles+=Number(l.tackles||0);x.sacks+=Number(l.sacks||0);x.picks+=Number(l.picks||0);x.fgMade+=Number(l.fgMade||0);x.fgAtt+=Number(l.fgAtt||0);m.set(l.playerId,x);
-  }
-  return [...m.values()].sort((a,b)=>b.fantasy-a.fantasy);
-}
+export function aggregateSeasonStats(lines:PlayerLine[]):SeasonStatRow[] { const m=new Map<string,SeasonStatRow>(); for(const l of lines){ const x=m.get(l.playerId)||{playerId:l.playerId,name:l.name,position:l.position,games:0,fantasy:0,passYds:0,passTD:0,interceptions:0,rushYds:0,rushTD:0,receptions:0,recYds:0,recTD:0,tackles:0,sacks:0,picks:0,fgMade:0,fgAtt:0}; x.games+=1;x.fantasy+=Number(l.fantasyScore||0);x.passYds+=Number(l.passYds||0);x.passTD+=Number(l.passTD||0);x.interceptions+=Number(l.interceptions||0);x.rushYds+=Number(l.rushYds||0);x.rushTD+=Number(l.rushTD||0);x.receptions+=Number(l.receptions||0);x.recYds+=Number(l.recYds||0);x.recTD+=Number(l.recTD||0);x.tackles+=Number(l.tackles||0);x.sacks+=Number(l.sacks||0);x.picks+=Number(l.picks||0);x.fgMade+=Number(l.fgMade||0);x.fgAtt+=Number(l.fgAtt||0);m.set(l.playerId,x);} return [...m.values()].sort((a,b)=>b.fantasy-a.fantasy); }
 
-export function buildStoryline(week:number,game:SimulationGame,userHome:boolean,lines:PlayerLine[],injuries:{playerName:string;severity:string}[],record:string,chemistry:number):Storyline {
-  const you=userHome?game.homeScore:game.awayScore,them=userHome?game.awayScore:game.homeScore,won=you>them;
-  const star=[...lines].sort((a,b)=>Number(b.fantasyScore||0)-Number(a.fantasyScore||0))[0];
-  if(injuries.length)return{id:`w${week}-injury`,week,tag:'BREAKING',headline:`${injuries[0].playerName} goes down in Week ${week}`,deck:`${injuries[0].severity} injury forces the depth chart into action. ${won?`Ball Knower still escaped ${you}-${them}.`:`The loss, ${you}-${them}, makes the backup plan matter immediately.`}`,tone:'red'};
-  if(Math.abs(you-them)<=3)return{id:`w${week}-nailbiter`,week,tag:'FINAL',headline:`Heart-stopper: ${won?'Ball Knower survives':'Ball Knower falls'} ${you}-${them}`,deck:`A one-possession game went to the final moments. ${star?`${star.name} led the way.`:''}`,tone:won?'green':'red'};
-  if(won&&you-them>=17)return{id:`w${week}-statement`,week,tag:'STATEMENT',headline:`Ball Knower sends a message with a ${you}-${them} rout`,deck:`The ${record} squad controlled both sides of the ball. Chemistry sits at ${chemistry}/99.${star?` ${star.name} was the headline performer.`:''}`,tone:'gold'};
-  if(star&&Number(star.fantasyScore||0)>=25)return{id:`w${week}-star`,week,tag:'STAR WATCH',headline:`${star.name} takes over in Week ${week}`,deck:`A monster performance powered a ${you}-${them} ${won?'win':'result'} and puts ${star.name} directly into the award conversation.`,tone:'blue'};
-  return{id:`w${week}-recap`,week,tag:won?'WIN COLUMN':'FILM ROOM',headline:`Week ${week}: ${won?'another step toward January':'time to answer back'}`,deck:`Final: ${you}-${them}. Ball Knower moves to ${record}. ${chemistry>=85?'The roster fit continues to show up on Sundays.':'There are still roster combinations to squeeze more from.'}`,tone:won?'green':'red'};
-}
+export function buildStoryline(week:number,game:SimulationGame,userHome:boolean,lines:PlayerLine[],injuries:{playerName:string;severity:string}[],record:string,chemistry:number):Storyline { const you=userHome?game.homeScore:game.awayScore,them=userHome?game.awayScore:game.homeScore,won=you>them; const star=[...lines].sort((a,b)=>Number(b.fantasyScore||0)-Number(a.fantasyScore||0))[0]; if(injuries.length)return{id:`w${week}-injury`,week,tag:'BREAKING',headline:`${injuries[0].playerName} goes down in Week ${week}`,deck:`${injuries[0].severity} injury forces the depth chart into action. ${won?`Ball Knower still escaped ${you}-${them}.`:`The loss, ${you}-${them}, makes the backup plan matter immediately.`}`,tone:'red'}; if(Math.abs(you-them)<=3)return{id:`w${week}-nailbiter`,week,tag:'FINAL',headline:`Heart-stopper: ${won?'Ball Knower survives':'Ball Knower falls'} ${you}-${them}`,deck:`A one-possession game went to the final moments. ${star?`${star.name} led the way.`:''}`,tone:won?'green':'red'}; if(won&&you-them>=17)return{id:`w${week}-statement`,week,tag:'STATEMENT',headline:`Ball Knower sends a message with a ${you}-${them} rout`,deck:`The ${record} squad controlled both sides of the ball. Chemistry sits at ${chemistry}/99.${star?` ${star.name} was the headline performer.`:''}`,tone:'gold'}; if(star&&Number(star.fantasyScore||0)>=25)return{id:`w${week}-star`,week,tag:'STAR WATCH',headline:`${star.name} takes over in Week ${week}`,deck:`A monster performance powered a ${you}-${them} ${won?'win':'result'} and puts ${star.name} directly into the award conversation.`,tone:'blue'}; return{id:`w${week}-recap`,week,tag:won?'WIN COLUMN':'FILM ROOM',headline:`Week ${week}: ${won?'another step toward January':'time to answer back'}`,deck:`Final: ${you}-${them}. Ball Knower moves to ${record}. ${chemistry>=85?'The roster fit continues to show up on Sundays.':'There are still roster combinations to squeeze more from.'}`,tone:won?'green':'red'}; }
 
-export function buildTradeOffer(starters:Player[],bench:Player[],week:number,capLeft:number):SoloTradeOffer|null {
-  if(![3,6,9,12,15].includes(week))return null;
-  const current=[...starters,...bench]; if(current.length<20)return null;
-  const chosen=new Set(current.map(p=>p.id));
-  const r=seeded(hash(`trade:${week}:${current.map(p=>p.id).sort().join('|')}`));
-  const movable=current.filter(p=>!['K','P'].includes(soloGroupOf(p))).sort((a,b)=>a.ovr-b.ovr || b.salary-a.salary).slice(0,12);
-  if(!movable.length)return null;
-  const outgoing=movable[Math.floor(r()*Math.min(5,movable.length))]; const g=soloGroupOf(outgoing);
-  const candidates=PLAYERS_DATABASE.filter(p=>!chosen.has(p.id)&&soloGroupOf(p)===g&&p.ovr>=outgoing.ovr+2&&p.salary-outgoing.salary<=capLeft+7)
-    .sort((a,b)=>((b.ovr-outgoing.ovr)*5-(b.salary-outgoing.salary))-((a.ovr-outgoing.ovr)*5-(a.salary-outgoing.salary))).slice(0,15);
-  if(!candidates.length)return null;
-  const incoming=candidates[Math.floor(r()*Math.min(5,candidates.length))]; const delta=Math.round((incoming.salary-outgoing.salary)*100)/100;
-  const reason=g==='OL'?'A contender wants your lineman and is offering a talent upgrade.':g==='DL_EDGE'||g==='LB'?'A defense-needy club called with a front-seven swap.':`A rival GM is offering an upgrade at ${g}.`;
-  return{id:`trade-${week}-${incoming.id}`,week,incoming,outgoing,capDelta:delta,reason,expiresAfterWeek:week};
-}
+export function buildTradeOffer(starters:Player[],bench:Player[],week:number,capLeft:number):SoloTradeOffer|null { if(![3,6,9,12,15].includes(week))return null; const current=[...starters,...bench]; if(current.length<20)return null; const chosen=new Set(current.map(p=>p.id)); const r=seeded(hash(`trade:${week}:${current.map(p=>p.id).sort().join('|')}`)); const movable=current.filter(p=>!['K','P'].includes(soloGroupOf(p))).sort((a,b)=>a.ovr-b.ovr||b.salary-a.salary).slice(0,12); if(!movable.length)return null; const outgoing=movable[Math.floor(r()*Math.min(5,movable.length))]; const g=soloGroupOf(outgoing); const candidates=PLAYERS_DATABASE.filter(p=>!chosen.has(p.id)&&soloGroupOf(p)===g&&p.ovr>=outgoing.ovr+2&&p.salary-outgoing.salary<=capLeft+.001).sort((a,b)=>((b.ovr-outgoing.ovr)*5-(b.salary-outgoing.salary))-((a.ovr-outgoing.ovr)*5-(a.salary-outgoing.salary))).slice(0,15); if(!candidates.length)return null; const incoming=candidates[Math.floor(r()*Math.min(5,candidates.length))]; const delta=Math.round((incoming.salary-outgoing.salary)*100)/100; const reason=g==='OL'?'A contender wants your lineman and is offering a talent upgrade.':g==='DL_EDGE'||g==='LB'?'A defense-needy club called with a front-seven swap.':`A rival GM is offering an upgrade at ${g}.`; return{id:`trade-${week}-${incoming.id}`,week,incoming,outgoing,capDelta:delta,reason,expiresAfterWeek:week}; }
 
-function cpuStat(p:Player,week:number,kind:'pass'|'rush'|'rec'|'sack'|'pick'){
-  const r=seeded(hash(`${kind}:${week}:${p.id}`)); const q=(p.ovr-70)/30;
-  if(kind==='pass')return Math.round(week*(205+q*95+r()*18));
-  if(kind==='rush')return Math.round(week*(42+q*54+r()*10));
-  if(kind==='rec')return Math.round(week*(45+q*58+r()*10));
-  if(kind==='sack')return Math.round(week*(.25+q*.7+r()*.18)*10)/10;
-  return Math.round(week*(.05+q*.16+r()*.05)*10)/10;
-}
+function cpuStat(p:Player,week:number,kind:'pass'|'rush'|'rec'|'sack'|'pick'){ const r=seeded(hash(`${kind}:${week}:${p.id}`)); const q=(p.ovr-70)/30; if(kind==='pass')return Math.round(week*(205+q*95+r()*18)); if(kind==='rush')return Math.round(week*(42+q*54+r()*10)); if(kind==='rec')return Math.round(week*(45+q*58+r()*10)); if(kind==='sack')return Math.round(week*(.25+q*.7+r()*.18)*10)/10; return Math.round(week*(.05+q*.16+r()*.05)*10)/10; }
 
-export function buildLeagueLeaders(userStats:SeasonStatRow[],week:number,userName='YOU'):SimLeagueLeader[] {
-  if(week<1)return[];
-  const qb=PLAYERS_DATABASE.filter(p=>p.position==='QB').sort((a,b)=>b.ovr-a.ovr).slice(0,8);
-  const rb=PLAYERS_DATABASE.filter(p=>p.position==='RB').sort((a,b)=>b.ovr-a.ovr).slice(0,10);
-  const wr=PLAYERS_DATABASE.filter(p=>['WR','TE'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12);
-  const rushers=PLAYERS_DATABASE.filter(p=>['EDGE','DE','DT','LB'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12);
-  const db=PLAYERS_DATABASE.filter(p=>['CB','S','FS','SS'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12);
-  const userBest=(key:keyof SeasonStatRow)=>[...userStats].sort((a,b)=>Number(b[key])-Number(a[key]))[0];
-  const cats:[string,keyof SeasonStatRow,Player[],('pass'|'rush'|'rec'|'sack'|'pick')][]=[['PASS YDS','passYds',qb,'pass'],['RUSH YDS','rushYds',rb,'rush'],['REC YDS','recYds',wr,'rec'],['SACKS','sacks',rushers,'sack'],['INTS','picks',db,'pick']];
-  return cats.map(([category,key,pool,kind])=>{
-    const cpu=pool.map(p=>({p,v:cpuStat(p,week,kind)})).sort((a,b)=>b.v-a.v)[0]; const u=userBest(key); const uv=Number(u?.[key]||0);
-    if(u&&uv>=cpu.v)return{category,value:kind==='sack'||kind==='pick'?uv.toFixed(1):String(Math.round(uv)),name:u.name,team:userName,isUser:true};
-    return{category,value:kind==='sack'||kind==='pick'?cpu.v.toFixed(1):String(Math.round(cpu.v)),name:cpu.p.name,team:cpu.p.team,isUser:false};
-  });
-}
+export function buildLeagueLeaders(userStats:SeasonStatRow[],week:number,userName='YOU'):SimLeagueLeader[] { if(week<1)return[]; const qb=PLAYERS_DATABASE.filter(p=>p.position==='QB').sort((a,b)=>b.ovr-a.ovr).slice(0,8); const rb=PLAYERS_DATABASE.filter(p=>p.position==='RB').sort((a,b)=>b.ovr-a.ovr).slice(0,10); const wr=PLAYERS_DATABASE.filter(p=>['WR','TE'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12); const rushers=PLAYERS_DATABASE.filter(p=>['EDGE','DE','DT','LB'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12); const db=PLAYERS_DATABASE.filter(p=>['CB','S','FS','SS'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,12); const userBest=(key:keyof SeasonStatRow)=>[...userStats].sort((a,b)=>Number(b[key])-Number(a[key]))[0]; const cats:[string,keyof SeasonStatRow,Player[],('pass'|'rush'|'rec'|'sack'|'pick')][]=[['PASS YDS','passYds',qb,'pass'],['RUSH YDS','rushYds',rb,'rush'],['REC YDS','recYds',wr,'rec'],['SACKS','sacks',rushers,'sack'],['INTS','picks',db,'pick']]; return cats.map(([category,key,pool,kind])=>{ const cpu=pool.map(p=>({p,v:cpuStat(p,week,kind)})).sort((a,b)=>b.v-a.v)[0]; const u=userBest(key); const uv=Number(u?.[key]||0); if(u&&uv>=cpu.v)return{category,value:kind==='sack'||kind==='pick'?uv.toFixed(1):String(Math.round(uv)),name:u.name,team:userName,isUser:true}; return{category,value:kind==='sack'||kind==='pick'?cpu.v.toFixed(1):String(Math.round(cpu.v)),name:cpu.p.name,team:cpu.p.team,isUser:false}; }); }
 
-export function buildMvpRace(userStats:SeasonStatRow[],week:number):MvpCandidate[] {
-  if(week<1)return[];
-  const user=userStats.slice(0,5).map(x=>({name:x.name,team:'BK',position:x.position,score:Math.round(x.fantasy*10)/10,isUser:true}));
-  const cpu=PLAYERS_DATABASE.filter(p=>['QB','RB','WR','TE','EDGE','LB','CB'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,18).map(p=>{
-    const r=seeded(hash(`mvp:${week}:${p.id}`)); return{name:p.name,team:p.team,position:p.position,score:Math.round((week*(8+(p.ovr-75)*.55+r()*3))*10)/10,isUser:false};
-  });
-  return [...user,...cpu].sort((a,b)=>b.score-a.score).slice(0,5);
-}
+export function buildMvpRace(userStats:SeasonStatRow[],week:number):MvpCandidate[] { if(week<1)return[]; const user=userStats.slice(0,5).map(x=>({name:x.name,team:'BK',position:x.position,score:Math.round(x.fantasy*10)/10,isUser:true})); const cpu=PLAYERS_DATABASE.filter(p=>['QB','RB','WR','TE','EDGE','LB','CB'].includes(p.position)).sort((a,b)=>b.ovr-a.ovr).slice(0,18).map(p=>{ const r=seeded(hash(`mvp:${week}:${p.id}`)); return{name:p.name,team:p.team,position:p.position,score:Math.round((week*(8+(p.ovr-75)*.55+r()*3))*10)/10,isUser:false}; }); return [...user,...cpu].sort((a,b)=>b.score-a.score).slice(0,5); }
 
-export function buildShareCardSvg(data:{name:string;record:string;champion:boolean;ovr:number;chemistry:number;bkScore:number;capLeft:number;topPlayer?:string}){
-  const title=data.champion?'SUPER BOWL CHAMPION':'BALL KNOWER SEASON'; const accent='#D4AF37';
-  const esc=(v:string)=>v.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]||c));
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200"><rect width="1200" height="1200" fill="#090909"/><rect x="52" y="52" width="1096" height="1096" rx="36" fill="#111" stroke="${accent}" stroke-width="4"/><text x="100" y="145" fill="${accent}" font-size="30" font-family="Arial" font-weight="800" letter-spacing="8">BALL KNOWER</text><text x="100" y="245" fill="white" font-size="64" font-family="Arial" font-weight="900">${title}</text><text x="100" y="310" fill="#aaa" font-size="30" font-family="Arial">${esc(data.name)}</text><text x="100" y="500" fill="white" font-size="150" font-family="Arial" font-weight="900">${esc(data.record)}</text><text x="100" y="565" fill="${accent}" font-size="28" font-family="Arial" font-weight="800">FINAL RECORD</text><g font-family="Arial" font-weight="800" font-size="38" fill="white"><text x="100" y="720">${data.ovr} OVR</text><text x="420" y="720">${data.chemistry} CHEM</text><text x="760" y="720">BK ${data.bkScore}</text><text x="100" y="805">$${data.capLeft.toFixed(1)}M CAP LEFT</text></g>${data.topPlayer?`<text x="100" y="930" fill="#aaa" font-size="30" font-family="Arial">Season MVP: ${esc(data.topPlayer)}</text>`:''}<text x="100" y="1070" fill="${accent}" font-size="34" font-family="Arial" font-weight="900">PROVE YOU KNOW BALL.</text></svg>`;
-}
+export function buildShareCardSvg(data:{name:string;record:string;champion:boolean;ovr:number;chemistry:number;bkScore:number;capLeft:number;topPlayer?:string}){ const title=data.champion?'SUPER BOWL CHAMPION':'BALL KNOWER SEASON'; const accent='#D4AF37'; const esc=(v:string)=>v.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]||c)); return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1200"><rect width="1200" height="1200" fill="#090909"/><rect x="52" y="52" width="1096" height="1096" rx="36" fill="#111" stroke="${accent}" stroke-width="4"/><text x="100" y="145" fill="${accent}" font-size="30" font-family="Arial" font-weight="800" letter-spacing="8">BALL KNOWER</text><text x="100" y="245" fill="white" font-size="64" font-family="Arial" font-weight="900">${title}</text><text x="100" y="310" fill="#aaa" font-size="30" font-family="Arial">${esc(data.name)}</text><text x="100" y="500" fill="white" font-size="150" font-family="Arial" font-weight="900">${esc(data.record)}</text><text x="100" y="565" fill="${accent}" font-size="28" font-family="Arial" font-weight="800">FINAL RECORD</text><g font-family="Arial" font-weight="800" font-size="38" fill="white"><text x="100" y="720">${data.ovr} OVR</text><text x="420" y="720">${data.chemistry} CHEM</text><text x="760" y="720">BK ${data.bkScore}</text><text x="100" y="805">$${data.capLeft.toFixed(1)}M CAP LEFT</text></g>${data.topPlayer?`<text x="100" y="930" fill="#aaa" font-size="30" font-family="Arial">Season MVP: ${esc(data.topPlayer)}</text>`:''}<text x="100" y="1070" fill="${accent}" font-size="34" font-family="Arial" font-weight="900">PROVE YOU KNOW BALL.</text></svg>`; }
 
-export function calculateBkRating(c:{championships:number;regularWins:number;regularLosses:number;playoffWins:number;bestScore:number;perfectSeasons:number}){
-  return Math.max(100,Math.round(500+c.regularWins*5-c.regularLosses*2+c.playoffWins*18+c.championships*140+c.perfectSeasons*220+c.bestScore*1.5));
-}
+export function calculateBkRating(c:{championships:number;regularWins:number;regularLosses:number;playoffWins:number;bestScore:number;perfectSeasons:number}){ return Math.max(100,Math.round(500+c.regularWins*5-c.regularLosses*2+c.playoffWins*18+c.championships*140+c.perfectSeasons*220+c.bestScore*1.5)); }

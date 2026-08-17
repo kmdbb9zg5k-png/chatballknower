@@ -7,6 +7,7 @@ interface CinematicIntroProps {
 }
 
 const INTRO_VIDEO_URL = 'https://raw.githubusercontent.com/kmdbb9zg5k-png/ball-knower1.0/main/public/assets/Creating_football_intro_video_202608160231.mp4';
+const INTRO_VOLUME = 0.5;
 
 export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -20,7 +21,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
 
     video.currentTime = 0;
     video.muted = false;
-    video.volume = 1;
+    video.volume = INTRO_VOLUME;
     setIsMuted(false);
     setNeedsGesture(false);
 
@@ -31,7 +32,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
         // keep the first frame visible and let one tap anywhere unlock audio.
         video.pause();
         video.muted = false;
-        video.volume = 1;
+        video.volume = INTRO_VOLUME;
         setIsMuted(false);
         setNeedsGesture(true);
       });
@@ -44,7 +45,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     const video = videoRef.current;
     if (!video) return;
     video.muted = false;
-    video.volume = 1;
+    video.volume = INTRO_VOLUME;
     setIsMuted(false);
     video.play()
       .then(() => setNeedsGesture(false))
@@ -56,7 +57,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     const video = videoRef.current;
     if (!video) return;
     video.muted = !video.muted;
-    video.volume = 1;
+    video.volume = INTRO_VOLUME;
     setIsMuted(video.muted);
     if (video.paused) video.play().catch(() => setNeedsGesture(true));
   };
@@ -67,7 +68,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     if (!video) return;
     video.currentTime = 0;
     video.muted = false;
-    video.volume = 1;
+    video.volume = INTRO_VOLUME;
     setIsMuted(false);
     video.play().then(() => setNeedsGesture(false)).catch(() => setNeedsGesture(true));
   };
@@ -95,7 +96,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
       {needsGesture && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center pb-24 sm:pb-28">
           <div className="rounded-full border border-[#D4AF37]/35 bg-black/55 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#D4AF37] backdrop-blur-sm animate-pulse">
-            Tap anywhere to start • Sound on
+            Tap anywhere to start • Sound 50%
           </div>
         </div>
       )}

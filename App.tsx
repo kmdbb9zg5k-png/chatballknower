@@ -13,6 +13,7 @@ import { CinematicIntro } from './CinematicIntro';
 import { DatabaseVerificationModal } from './DatabaseVerificationModal';
 import { SoloMode } from './SoloMode';
 import { HallOfFame } from './HallOfFame';
+import { PLAYERS_DATABASE } from './players';
 import { League } from './types';
 import {
   CheckCircle2,
@@ -26,6 +27,90 @@ import {
   Brain,
   CalendarDays,
 } from 'lucide-react';
+
+const CAP_CACHE_KEY = 'ballknower_2026_cap_hits_v1';
+const CAP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CAP_HITS_URL = 'https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-cap-hits?key=ballknower-cap-v1';
+
+function normalizeCapName(value: string) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\b(jr|sr|ii|iii|iv|v)\.?\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function applyCapPayload(payload: any) {
+  const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+  if (!rows.length) return 0;
+
+  const alias: Record<string, string> = {
+    'matthew stafford': 'matt stafford',
+  };
+
+  const byTeamAndName = new Map<string, number>();
+  for (const row of rows) {
+    const team = String(row?.team || '').toUpperCase();
+    const name = normalizeCapName(String(row?.name || ''));
+    const capHit = Number(row?.capHit || 0);
+    if (team && name && Number.isFinite(capHit) && capHit > 0) {
+      byTeamAndName.set(`${team}:${name}`, capHit);
+    }
+  }
+
+  let updated = 0;
+  const updatedAt = String(payload?.updatedAt || new Date().toISOString());
+  for (const player of PLAYERS_DATABASE) {
+    if (!player.salaryType) player.salaryType = 'estimated';
+    if (!player.salarySource) player.salarySource = 'legacy_estimate';
+    if (!player.salarySeason) player.salarySeason = 2026;
+
+    const normalized = normalizeCapName(player.name);
+    const lookupName = alias[normalized] || normalized;
+    const capHit = byTeamAndName.get(`${player.team}:${lookupName}`);
+    if (!capHit) continue;
+
+    player.salary = Math.round((capHit / 1_000_000) * 100) / 100;
+    player.salaryType = 'cap_hit';
+    player.salarySeason = 2026;
+    player.salarySource = 'Over The Cap';
+    player.salaryLastUpdated = updatedAt;
+    updated += 1;
+  }
+
+  return updated;
+}
+
+async function hydrate2026CapHits() {
+  try {
+    const cachedRaw = localStorage.getItem(CAP_CACHE_KEY);
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      if (cached?.savedAt && Date.now() - Number(cached.savedAt) < CAP_CACHE_TTL_MS && cached?.payload) {
+        const count = applyCapPayload(cached.payload);
+        if (count > 0) return count;
+      }
+    }
+  } catch (error) {
+    console.warn('Ball Knower cap cache read failed', error);
+  }
+
+  const response = await fetch(CAP_HITS_URL, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Cap sync failed (${response.status})`);
+  const payload = await response.json();
+  const count = applyCapPayload(payload);
+
+  try {
+    localStorage.setItem(CAP_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), payload }));
+  } catch (error) {
+    console.warn('Ball Knower cap cache write failed', error);
+  }
+
+  return count;
+}
 
 function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   return (
@@ -99,10 +184,21 @@ function BallKnowerApp() {
   const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
   const [isIntroOpen, setIsIntroOpen] = useState<boolean>(true);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [, setCapDataVersion] = useState(0);
 
   useEffect(() => {
     setIntroActive(isIntroOpen);
   }, [isIntroOpen, setIntroActive]);
+
+  useEffect(() => {
+    let cancelled = false;
+    hydrate2026CapHits()
+      .then((updated) => {
+        if (!cancelled && updated > 0) setCapDataVersion(v => v + 1);
+      })
+      .catch(error => console.warn('2026 cap-hit sync unavailable; using cached/estimated values', error));
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     try {

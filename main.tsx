@@ -5,7 +5,7 @@ import {NFL_TEAMS, PLAYERS_DATABASE} from './players';
 import './index.css';
 
 const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-roster-map?key=ballknower-roster-v1';
-const TEAM_CACHE_KEY='ballknower_2026_team_map_v1';
+const TEAM_CACHE_KEY='ballknower_2026_team_map_v2';
 const TEAM_CACHE_TTL=60*60*1000;
 
 function normalizePlayerName(value:string){
@@ -19,20 +19,42 @@ function normalizePlayerName(value:string){
     .replace(/\s+/g,' ');
 }
 
+function normalizePosition(value:string){
+  const p=String(value||'').toUpperCase().trim();
+  if(['DE','EDGE'].includes(p)) return 'EDGE';
+  if(['OLB','ILB','MLB','LB'].includes(p)) return 'LB';
+  if(['FS','SS','S','SAF'].includes(p)) return 'S';
+  if(['NT','DT'].includes(p)) return 'DT';
+  if(['OG','G'].includes(p)) return 'G';
+  if(['OT','T'].includes(p)) return 'OT';
+  return p;
+}
+
 function applyTeamPayload(payload:any){
   const rows=Array.isArray(payload?.rows)?payload.rows:[];
   if(!rows.length)return 0;
-  const current=new Map<string,string>();
+
+  const byName=new Map<string,any[]>();
   for(const row of rows){
     const name=normalizePlayerName(String(row?.name||''));
     const team=String(row?.team||'').toUpperCase();
-    if(name&&team)current.set(name,team);
+    if(!name||!team)continue;
+    const bucket=byName.get(name)||[];
+    bucket.push(row);
+    byName.set(name,bucket);
   }
 
   let updated=0;
   for(const player of PLAYERS_DATABASE){
-    const team=current.get(normalizePlayerName(player.name));
-    if(!team)continue;
+    const candidates=byName.get(normalizePlayerName(player.name))||[];
+    if(!candidates.length)continue;
+
+    const wantedPosition=normalizePosition(player.position);
+    let match=candidates.find(row=>normalizePosition(String(row?.position||''))===wantedPosition);
+    if(!match&&candidates.length===1)match=candidates[0];
+    if(!match)continue;
+
+    const team=String(match.team||'').toUpperCase();
     const info=NFL_TEAMS.find(t=>t.code===team);
     if(player.team!==team)updated++;
     player.team=team;
@@ -40,7 +62,6 @@ function applyTeamPayload(payload:any){
     player.teamAbbreviation=team;
     player.rosterSeason=2026;
     player.rosterLastUpdated=String(payload?.updatedAt||new Date().toISOString());
-    player.active=true;
     if(info){
       player.teamCity=info.city;
       player.teamName=info.name;

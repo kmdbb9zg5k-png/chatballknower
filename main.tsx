@@ -8,6 +8,80 @@ const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-rost
 const TEAM_CACHE_KEY='ballknower_2026_official_roster_audit_v5';
 const TEAM_CACHE_TTL=30*60*1000;
 
+// Solo originally used fictional CPU franchise names. Keep the balanced CPU
+// roster engine, but present every opponent as its real NFL counterpart.
+const SOLO_TEAM_NAME_MAP:Record<string,string>={
+  'Baltimore Blackbirds':'Baltimore Ravens',
+  'Buffalo Blizzard':'Buffalo Bills',
+  'Miami Waves':'Miami Dolphins',
+  'Boston Minutemen':'New England Patriots',
+  'Cleveland Hounds':'Cleveland Browns',
+  'Cincinnati Kings':'Cincinnati Bengals',
+  'Pittsburgh Iron':'Pittsburgh Steelers',
+  'Houston Outlaws':'Houston Texans',
+  'Indianapolis Racers':'Indianapolis Colts',
+  'Jacksonville Storm':'Jacksonville Jaguars',
+  'Tennessee Copperheads':'Tennessee Titans',
+  'Denver Peaks':'Denver Broncos',
+  'Kansas City Monarchs':'Kansas City Chiefs',
+  'Las Vegas Aces':'Las Vegas Raiders',
+  'Los Angeles Bolts':'Los Angeles Chargers',
+  'New York Knights':'New York Giants',
+  'Dallas Wranglers':'Dallas Cowboys',
+  'Philadelphia Liberty':'Philadelphia Eagles',
+  'Washington Generals':'Washington Commanders',
+  'Chicago Grizzlies':'Chicago Bears',
+  'Detroit Motors':'Detroit Lions',
+  'Green Bay Northmen':'Green Bay Packers',
+  'Minnesota Valkyries':'Minnesota Vikings',
+  'Atlanta Flight':'Atlanta Falcons',
+  'Carolina Reapers':'Carolina Panthers',
+  'New Orleans Krewe':'New Orleans Saints',
+  'Tampa Bay Corsairs':'Tampa Bay Buccaneers',
+  'Arizona Scorpions':'Arizona Cardinals',
+  'Los Angeles Gold':'Los Angeles Rams',
+  'San Francisco Rush':'San Francisco 49ers',
+  'Seattle Orcas':'Seattle Seahawks',
+};
+
+function replaceSoloTeamNames(value:string){
+  let out=value;
+  for(const [fictional,real] of Object.entries(SOLO_TEAM_NAME_MAP)){
+    if(out.includes(fictional))out=out.split(fictional).join(real);
+  }
+  return out;
+}
+
+function patchSoloTeamNamesInNode(node:Node){
+  if(node.nodeType===Node.TEXT_NODE){
+    const current=node.nodeValue||'';
+    const next=replaceSoloTeamNames(current);
+    if(next!==current)node.nodeValue=next;
+    return;
+  }
+  if(node.nodeType!==Node.ELEMENT_NODE)return;
+  const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);
+  let textNode:Node|null;
+  while((textNode=walker.nextNode())){
+    const current=textNode.nodeValue||'';
+    const next=replaceSoloTeamNames(current);
+    if(next!==current)textNode.nodeValue=next;
+  }
+}
+
+function installRealSoloTeamNames(){
+  const root=document.getElementById('root');
+  if(!root)return;
+  patchSoloTeamNamesInNode(root);
+  const observer=new MutationObserver(mutations=>{
+    for(const mutation of mutations){
+      if(mutation.type==='characterData')patchSoloTeamNamesInNode(mutation.target);
+      for(const node of Array.from(mutation.addedNodes))patchSoloTeamNamesInNode(node);
+    }
+  });
+  observer.observe(root,{subtree:true,childList:true,characterData:true});
+}
+
 function normalizePlayerName(value:string){
   return String(value||'')
     .normalize('NFD')
@@ -176,6 +250,7 @@ function renderBallKnower(){
       <App />
     </StrictMode>,
   );
+  installRealSoloTeamNames();
 }
 
 void syncCurrentTeams().finally(renderBallKnower);

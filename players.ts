@@ -1,13 +1,13 @@
-import { Player, Position, PositionGroup, RosterMigrationReport, RosterMismatch, RatingsValidationReport } from '../types';
-import { AFC_EAST_PLAYERS } from './teams/afcEast';
-import { AFC_NORTH_PLAYERS } from './teams/afcNorth';
-import { AFC_SOUTH_PLAYERS } from './teams/afcSouth';
-import { AFC_WEST_PLAYERS } from './teams/afcWest';
-import { NFC_EAST_PLAYERS } from './teams/nfcEast';
-import { NFC_NORTH_PLAYERS } from './teams/nfcNorth';
-import { NFC_SOUTH_PLAYERS } from './teams/nfcSouth';
-import { NFC_WEST_PLAYERS } from './teams/nfcWest';
-import { validateDatabase, DatabaseValidationReport } from '../utils/databaseValidator';
+import { Player, Position, PositionGroup, RosterMigrationReport, RosterMismatch, RatingsValidationReport } from './types';
+import { AFC_EAST_PLAYERS } from './afcEast';
+import { AFC_NORTH_PLAYERS } from './afcNorth';
+import { AFC_SOUTH_PLAYERS } from './afcSouth';
+import { AFC_WEST_PLAYERS } from './afcWest';
+import { NFC_EAST_PLAYERS } from './nfcEast';
+import { NFC_NORTH_PLAYERS } from './nfcNorth';
+import { NFC_SOUTH_PLAYERS } from './nfcSouth';
+import { NFC_WEST_PLAYERS } from './nfcWest';
+import { validateDatabase, DatabaseValidationReport } from './databaseValidator';
 import {
   CURRENT_ROSTER_METADATA,
   HISTORICAL_ROSTER_MIGRATIONS,
@@ -18,7 +18,7 @@ import {
   MADDEN_RATING_METADATA,
   OFFICIAL_MADDEN_RATINGS,
   getOfficialMaddenRating,
-} from './ratings/maddenRatings';
+} from './maddenRatings';
 import {
   MASTER_2026_ROSTER_REGISTRY,
   enforce2026Roster,
@@ -26,8 +26,8 @@ import {
   generateFull2026RosterValidationReport,
   CentralizedRosterValidationReport,
   RosterValidationEntry,
-} from './rosters/masterRoster2026';
-import { validatePlayerRatings } from '../utils/ratingsValidator';
+} from './masterRoster2026';
+import { validatePlayerRatings } from './ratingsValidator';
 import { applyCurrent2026Roster } from './currentSeasonRoster';
 
 export {

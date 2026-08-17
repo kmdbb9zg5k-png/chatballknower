@@ -1,8 +1,8 @@
-import { Player, LeagueMember, SimulationGame, TeamRatings, DEFAULT_SALARY_CAP } from '../types';
+import { Player, LeagueMember, SimulationGame, TeamRatings, DEFAULT_SALARY_CAP } from './types';
 import { calculateTeamRatings } from './evaluation';
 import { simulateGame } from './simulation';
 import { chooseSmartPick, GmPersonality, gradeDraft } from './smartDraft';
-import { PLAYERS_DATABASE } from '../data/players';
+import { PLAYERS_DATABASE } from './players';
 
 export type SoloDifficulty='rookie'|'pro'|'all_pro'|'all_madden';
 export type InjurySetting='off'|'normal'|'chaos';
@@ -15,7 +15,7 @@ export interface PlayerLine {
   fgMade?:number; fgAtt?:number; puntsInside20?:number;
   fantasyScore:number;
 }
-export interface InjuryEvent { playerId:string; playerName:string; position:string; weeks:number; week:number; severity:string; }
+export interface InjuryEvent { playerId:string; playerName:string; position:string; weeks:number; week:number; severity:string; duration?:number; }
 export interface SoloWeek {
   week:number; opponent:string; game:SimulationGame; won:boolean; playerLines:PlayerLine[];
   injuries:InjuryEvent[]; playoffSeed:number; playoffOdds:number; record:string;
@@ -84,7 +84,7 @@ export function simulateInjuries(roster:Player[],week:number,setting:InjurySetti
  if(!candidates.length)return[];
  const p=candidates[Math.floor(r()*candidates.length)];
  const roll=r(); const weeks=roll<.58?1:roll<.86?2:roll<.97?3:5;
- return [{playerId:p.id,playerName:p.name,position:p.position,weeks,week,severity:weeks===1?'Minor':weeks<=3?'Moderate':'Major'}];
+ return [{playerId:p.id,playerName:p.name,position:p.position,weeks,week,duration:weeks,severity:weeks===1?'Minor':weeks<=3?'Moderate':'Major'}];
 }
 export function generatePlayerLines(roster:Player[],game:SimulationGame,userHome:boolean,week:number):PlayerLine[]{
  const pts=userHome?game.homeScore:game.awayScore; const r=seeded(hash(`stats:${week}:${game.id}`));
@@ -114,10 +114,16 @@ export function buildAwards(lines:PlayerLine[]){
  const arr=[...by.values()].sort((a,b)=>b.score-a.score);
  const offense=arr.filter(x=>['QB','RB','WR','TE'].includes(x.pos));
  const defense=arr.filter(x=>['EDGE','DT','DE','NT','LB','CB','S','FS','SS'].includes(x.pos));
+ const air=arr.filter(x=>['QB','WR','TE'].includes(x.pos));
+ const ground=arr.filter(x=>x.pos==='RB');
+ const special=arr.filter(x=>['K','P'].includes(x.pos));
  return [
   {award:'TEAM MVP',winner:arr[0]?.name||'—',score:arr[0]?.score||0},
   {award:'OFFENSIVE PLAYER OF THE YEAR',winner:offense[0]?.name||'—',score:offense[0]?.score||0},
   {award:'DEFENSIVE PLAYER OF THE YEAR',winner:defense[0]?.name||'—',score:defense[0]?.score||0},
+  {award:'AIR ATTACK AWARD',winner:air[0]?.name||offense[0]?.name||'—',score:air[0]?.score||offense[0]?.score||0},
+  {award:'GROUND GAME AWARD',winner:ground[0]?.name||offense[0]?.name||'—',score:ground[0]?.score||offense[0]?.score||0},
+  {award:'SPECIAL TEAMS ACE',winner:special[0]?.name||'—',score:special[0]?.score||0},
  ];
 }
 export function achievementsForRun(wins:number,losses:number,champ:boolean,grade:number,roster:Player[]){

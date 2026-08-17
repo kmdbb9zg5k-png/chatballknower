@@ -2,8 +2,7 @@ import React,{useEffect,useMemo,useState}from'react';
 import{Activity,BarChart3,Crown,ExternalLink,Newspaper,RefreshCw,ShieldCheck,Trophy,UserRound,Wifi,WifiOff,Zap}from'lucide-react';
 import{fetchLeaderboard,fetchMyCloudProfile,updateProfileMeta}from'../services/leaderboardCloud';
 import{isCloudConfigured}from'../lib/supabase';
-import{defaultCareer,CareerProfile}from'../utils/soloSeasonEngine';
-import{calculateBkRating}from'../soloImmersion';
+import{defaultCareer,CareerProfile,calculateBkRating}from'../utils/soloSeasonEngine';
 import{useBallKnower}from'../context/BallKnowerContext';
 
 const CAREER_KEY='ballknower_solo_career_v2';

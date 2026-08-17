@@ -5,8 +5,8 @@ import {NFL_TEAMS, PLAYERS_DATABASE} from './players';
 import './index.css';
 
 const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-roster-map?key=ballknower-roster-v1';
-const TEAM_CACHE_KEY='ballknower_2026_team_map_v2';
-const TEAM_CACHE_TTL=60*60*1000;
+const TEAM_CACHE_KEY='ballknower_2026_official_roster_audit_v4';
+const TEAM_CACHE_TTL=30*60*1000;
 
 function normalizePlayerName(value:string){
   return String(value||'')
@@ -19,57 +19,112 @@ function normalizePlayerName(value:string){
     .replace(/\s+/g,' ');
 }
 
-function normalizePosition(value:string){
+function positionFamily(value:string){
   const p=String(value||'').toUpperCase().trim();
-  if(['DE','EDGE'].includes(p)) return 'EDGE';
-  if(['OLB','ILB','MLB','LB'].includes(p)) return 'LB';
-  if(['FS','SS','S','SAF'].includes(p)) return 'S';
-  if(['NT','DT'].includes(p)) return 'DT';
-  if(['OG','G'].includes(p)) return 'G';
-  if(['OT','T'].includes(p)) return 'OT';
+  if(['HB','FB','RB'].includes(p))return 'RB';
+  if(['T','OT','LT','RT','G','OG','LG','RG','C','OL'].includes(p))return 'OL';
+  if(['DE','EDGE','DT','NT','DL','DL_EDGE'].includes(p))return 'DL_EDGE';
+  if(['OLB','ILB','MLB','LB'].includes(p))return 'LB';
+  if(['CB','DB','FS','SS','S','SAF'].includes(p))return 'DB';
   return p;
 }
 
-function applyTeamPayload(payload:any){
+function identity(name:string,position:string){
+  return `${normalizePlayerName(name)}|${positionFamily(position)}`;
+}
+
+function apply2026RatingOverrides(){
+  const overrides:Record<string,number>={
+    'tyreek hill':92,
+  };
+  for(const player of PLAYERS_DATABASE){
+    const rating=overrides[normalizePlayerName(player.name)];
+    if(!rating)continue;
+    player.ovr=rating;
+    player.overallRating=rating;
+    player.overall=rating;
+    player.ratingSeason=2026;
+    player.ratingSource='EA SPORTS Madden NFL 27';
+    player.ratingStatus='VERIFIED';
+  }
+}
+
+function applyRosterAudit(payload:any){
   const rows=Array.isArray(payload?.rows)?payload.rows:[];
-  if(!rows.length)return 0;
+  const retiredRows=Array.isArray(payload?.retired)?payload.retired:[];
+  if(!rows.length)return {updated:0,freeAgents:0,removed:0};
 
   const byName=new Map<string,any[]>();
   for(const row of rows){
     const name=normalizePlayerName(String(row?.name||''));
-    const team=String(row?.team||'').toUpperCase();
-    if(!name||!team)continue;
+    if(!name)continue;
     const bucket=byName.get(name)||[];
     bucket.push(row);
     byName.set(name,bucket);
   }
+  const retiredIds=new Set(retiredRows.map((row:any)=>identity(String(row?.name||''),String(row?.position||''))));
+  const retiredNames=new Map<string,any[]>();
+  for(const row of retiredRows){
+    const key=normalizePlayerName(String(row?.name||''));
+    const bucket=retiredNames.get(key)||[];
+    bucket.push(row);
+    retiredNames.set(key,bucket);
+  }
 
-  let updated=0;
-  for(const player of PLAYERS_DATABASE){
-    const candidates=byName.get(normalizePlayerName(player.name))||[];
-    if(!candidates.length)continue;
-
-    const wantedPosition=normalizePosition(player.position);
-    let match=candidates.find(row=>normalizePosition(String(row?.position||''))===wantedPosition);
+  let updated=0,freeAgents=0,removed=0;
+  for(let i=PLAYERS_DATABASE.length-1;i>=0;i--){
+    const player=PLAYERS_DATABASE[i];
+    const nameKey=normalizePlayerName(player.name);
+    const family=positionFamily(player.position);
+    const candidates=byName.get(nameKey)||[];
+    let match=candidates.find(row=>positionFamily(String(row?.position||''))===family);
     if(!match&&candidates.length===1)match=candidates[0];
-    if(!match)continue;
 
-    const team=String(match.team||'').toUpperCase();
-    const info=NFL_TEAMS.find(t=>t.code===team);
-    if(player.team!==team)updated++;
-    player.team=team;
-    player.teamId=team;
-    player.teamAbbreviation=team;
+    if(match){
+      const team=String(match.team||'').toUpperCase();
+      const info=NFL_TEAMS.find(t=>t.code===team);
+      if(player.team!==team)updated++;
+      player.team=team;
+      player.teamId=team;
+      player.teamAbbreviation=team;
+      player.active=true;
+      player.rosterSeason=2026;
+      player.rosterLastUpdated=String(payload?.updatedAt||new Date().toISOString());
+      if(info){
+        player.teamCity=info.city;
+        player.teamName=info.name;
+        player.conference=info.conference;
+        player.division=info.division;
+      }
+      continue;
+    }
+
+    const retiredForName=retiredNames.get(nameKey)||[];
+    const isRetired=retiredIds.has(identity(player.name,player.position)) ||
+      (retiredForName.length===1 && positionFamily(String(retiredForName[0]?.position||''))===family);
+    if(isRetired){
+      PLAYERS_DATABASE.splice(i,1);
+      removed++;
+      continue;
+    }
+
+    // Not on any of the 32 current NFL rosters and not retired = free agent.
+    if(player.team!=='FA')updated++;
+    player.team='FA';
+    player.teamId='FA';
+    player.teamAbbreviation='FA';
+    player.teamCity='Free Agent';
+    player.teamName='Free Agent';
+    player.conference='';
+    player.division='';
+    player.active=true;
     player.rosterSeason=2026;
     player.rosterLastUpdated=String(payload?.updatedAt||new Date().toISOString());
-    if(info){
-      player.teamCity=info.city;
-      player.teamName=info.name;
-      player.conference=info.conference;
-      player.division=info.division;
-    }
+    freeAgents++;
   }
-  return updated;
+
+  apply2026RatingOverrides();
+  return {updated,freeAgents,removed};
 }
 
 async function syncCurrentTeams(){
@@ -78,7 +133,8 @@ async function syncCurrentTeams(){
     if(cachedRaw){
       const cached=JSON.parse(cachedRaw);
       if(cached?.savedAt&&Date.now()-Number(cached.savedAt)<TEAM_CACHE_TTL&&cached?.payload){
-        applyTeamPayload(cached.payload);
+        const result=applyRosterAudit(cached.payload);
+        console.info('Ball Knower official roster audit (cache)',result);
         return;
       }
     }
@@ -86,12 +142,14 @@ async function syncCurrentTeams(){
 
   try{
     const response=await fetch(ROSTER_URL,{cache:'no-store'});
-    if(!response.ok)throw new Error(`Roster sync failed (${response.status})`);
+    if(!response.ok)throw new Error(`Roster audit failed (${response.status})`);
     const payload=await response.json();
-    applyTeamPayload(payload);
+    const result=applyRosterAudit(payload);
+    console.info('Ball Knower official roster audit',result);
     try{localStorage.setItem(TEAM_CACHE_KEY,JSON.stringify({savedAt:Date.now(),payload}));}catch{}
   }catch(error){
-    console.warn('2026 live team sync unavailable; using bundled teams',error);
+    console.warn('2026 official roster audit unavailable; using bundled teams',error);
+    apply2026RatingOverrides();
   }
 }
 

@@ -11,7 +11,7 @@ const INTRO_VIDEO_URL = 'https://raw.githubusercontent.com/kmdbb9zg5k-png/ball-k
 export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [needsGesture, setNeedsGesture] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -22,56 +22,66 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     video.muted = false;
     video.volume = 1;
     setIsMuted(false);
-    setAutoplayBlocked(false);
+    setNeedsGesture(false);
 
     const attempt = video.play();
     if (attempt) {
       attempt.catch(() => {
-        // Never silently fall back to muted playback. On browsers such as
-        // iPhone Safari that block autoplay with sound, wait for one user tap
-        // and then play the intro loudly with audio enabled.
+        // iPhone Safari blocks autoplay with sound. Never fall back to mute;
+        // keep the first frame visible and let one tap anywhere unlock audio.
         video.pause();
         video.muted = false;
         video.volume = 1;
         setIsMuted(false);
-        setAutoplayBlocked(true);
+        setNeedsGesture(true);
       });
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const toggleMute = () => {
+  const startWithSound = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = false;
+    video.volume = 1;
+    setIsMuted(false);
+    video.play()
+      .then(() => setNeedsGesture(false))
+      .catch(() => setNeedsGesture(true));
+  };
+
+  const toggleMute = (event?: React.MouseEvent) => {
+    event?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
     video.muted = !video.muted;
     video.volume = 1;
     setIsMuted(video.muted);
-    if (video.paused) video.play().catch(() => setAutoplayBlocked(true));
+    if (video.paused) video.play().catch(() => setNeedsGesture(true));
   };
 
-  const restart = () => {
+  const restart = (event?: React.MouseEvent) => {
+    event?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = 0;
     video.muted = false;
     video.volume = 1;
     setIsMuted(false);
-    video.play().catch(() => setAutoplayBlocked(true));
+    video.play().then(() => setNeedsGesture(false)).catch(() => setNeedsGesture(true));
   };
 
-  const manualPlay = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = false;
-    video.volume = 1;
-    setIsMuted(false);
-    setAutoplayBlocked(false);
-    video.play().catch(() => setAutoplayBlocked(true));
+  const skipIntro = (event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden">
+    <div
+      className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden"
+      onClick={needsGesture ? startWithSound : undefined}
+    >
       <video
         ref={videoRef}
         src={INTRO_VIDEO_URL}
@@ -79,10 +89,18 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
         playsInline
         preload="auto"
         onEnded={onClose}
-        onError={() => setAutoplayBlocked(true)}
+        onError={() => setNeedsGesture(true)}
       />
 
-      <div className="absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 p-4 sm:p-6 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+      {needsGesture && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center pb-24 sm:pb-28">
+          <div className="rounded-full border border-[#D4AF37]/35 bg-black/55 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#D4AF37] backdrop-blur-sm animate-pulse">
+            Tap anywhere to start • Sound on
+          </div>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-4 sm:p-6 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
         <div className="flex items-center gap-2">
           <button
             onClick={toggleMute}
@@ -101,22 +119,13 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
         </div>
 
         <button
-          onClick={onClose}
+          onClick={skipIntro}
           className="flex items-center gap-2 rounded-sm border border-[#D4AF37]/50 bg-black/70 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-[#D4AF37] hover:bg-black"
         >
           <SkipForward className="h-4 w-4" />
           Skip Intro
         </button>
       </div>
-
-      {autoplayBlocked && (
-        <button
-          onClick={manualPlay}
-          className="relative z-20 rounded-md border border-[#D4AF37]/50 bg-black/85 px-7 py-4 text-sm font-black uppercase tracking-widest text-[#D4AF37] shadow-[0_0_35px_rgba(212,175,55,0.18)]"
-        >
-          Play Intro With Sound
-        </button>
-      )}
     </div>
   );
 };

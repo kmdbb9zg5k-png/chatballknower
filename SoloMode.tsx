@@ -151,19 +151,74 @@ export const SoloMode:React.FC = () => {
   };
 
   const autoDraft = () => {
-    let s:Player[]=[], d:Player[]=[];
-    for(let pick=0;pick<50&&s.length+d.length<SOLO_SIZE;pick++){
-      const chosen=new Set([...s,...d].map(p=>p.id)); const spentNow=[...s,...d].reduce((n,p)=>n+p.salary,0); const capLeft=DEFAULT_SALARY_CAP-spentNow;
-      const legal=PLAYERS_DATABASE.filter(p=>{
-        if(chosen.has(p.id)||p.salary>capLeft) return false;
-        const g=groupOf(p); if(!GROUPS.includes(g)||totalCount(s,d,g)>=TOTALS[g]) return false;
-        const isStarter=count(s,g)<ROSTER_REQUIREMENTS[g]; const ns=isStarter?[...s,p]:s, nd=isStarter?d:[...d,p];
-        return minimumFinishCost(ns,nd)<=capLeft-p.salary+.001;
-      });
-      const p=legal.sort((a,b)=>smartScore(b,s)-smartScore(a,s))[0]; if(!p) break;
-      const g=groupOf(p); count(s,g)<ROSTER_REQUIREMENTS[g]?s.push(p):d.push(p);
+    try {
+      const pools = {} as Record<Group,Player[]>;
+      const picked = {} as Record<Group,Player[]>;
+      GROUPS.forEach(g=>{ pools[g]=[]; picked[g]=[]; });
+
+      for (const p of PLAYERS_DATABASE) {
+        const g = groupOf(p);
+        const salary = Number(p.salary);
+        if (!GROUPS.includes(g) || !Number.isFinite(salary) || salary < 0 || !Number.isFinite(Number(p.ovr))) continue;
+        pools[g].push(p);
+      }
+
+      let total = 0;
+      for (const g of GROUPS) {
+        pools[g].sort((a,b)=>a.salary-b.salary || b.ovr-a.ovr);
+        if (pools[g].length < TOTALS[g]) throw new Error(`Not enough ${label(g)} players to build a legal roster.`);
+        picked[g] = pools[g].slice(0,TOTALS[g]);
+        total += picked[g].reduce((n,p)=>n+p.salary,0);
+      }
+      if (total > DEFAULT_SALARY_CAP) throw new Error('The current player pool cannot build 29 legal spots under the cap.');
+
+      const value = (p:Player) => smartScore(p,[]);
+      const candidatePools = {} as Record<Group,Player[]>;
+      for (const g of GROUPS) candidatePools[g]=[...pools[g]].sort((a,b)=>value(b)-value(a)).slice(0,60);
+
+      for (let round=0; round<70; round++) {
+        const chosen = new Set(GROUPS.flatMap(g=>picked[g]).map(p=>p.id));
+        const capLeft = DEFAULT_SALARY_CAP-total;
+        let best:{g:Group;slot:number;p:Player;delta:number;score:number}|null=null;
+
+        for (const g of GROUPS) {
+          for (let slot=0; slot<picked[g].length; slot++) {
+            const old = picked[g][slot];
+            const oldValue = value(old);
+            for (const p of candidatePools[g]) {
+              if (chosen.has(p.id)) continue;
+              const delta = p.salary-old.salary;
+              if (delta > capLeft+.001) continue;
+              const gain = value(p)-oldValue;
+              if (gain <= .01) continue;
+              const efficiency = gain/Math.max(.25,delta>0?delta:.25);
+              const score = gain*5+efficiency;
+              if (!best || score>best.score) best={g,slot,p,delta,score};
+            }
+          }
+        }
+
+        if (!best) break;
+        picked[best.g][best.slot]=best.p;
+        total += best.delta;
+      }
+
+      const s:Player[]=[];
+      const d:Player[]=[];
+      for (const g of GROUPS) {
+        const groupPicks=[...picked[g]].sort((a,b)=>b.ovr-a.ovr || a.salary-b.salary);
+        s.push(...groupPicks.slice(0,ROSTER_REQUIREMENTS[g]));
+        d.push(...groupPicks.slice(ROSTER_REQUIREMENTS[g]));
+      }
+
+      if (s.length!==STARTERS || d.length!==DEPTH) throw new Error('Auto-draft could not finish all required roster spots.');
+      setRoster(s);
+      setBench(d);
+      setMessage(`Smart 29-man roster built in one pass — $${Math.max(0,DEFAULT_SALARY_CAP-total).toFixed(1)}M cap remaining.`);
+    } catch (error) {
+      console.error('Solo auto-draft failed',error);
+      setMessage(error instanceof Error ? error.message : 'Auto-draft failed. Please try again.');
     }
-    setRoster([...s]); setBench([...d]); setMessage(s.length+d.length===SOLO_SIZE?'Smart 29-man roster built. Change anything you want or start the season.':'Could not finish a legal 29-man roster under the cap.');
   };
 
   const start = () => {

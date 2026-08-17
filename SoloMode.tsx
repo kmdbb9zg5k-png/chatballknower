@@ -9,15 +9,12 @@ import { simulateGame } from './simulation';
 import { useBallKnower } from './BallKnowerContext';
 import { publishCareer } from './leaderboardCloud';
 import {
-  CareerProfile, InjuryEvent, SoloSettings, SoloWeek, achievementsForRun, buildAwards,
-  defaultCareer, generatePlayerLines, makeSoloOpponent, playoffSnapshot, ratingsWithInjuries,
-  simulateInjuries, updateCareer
-} from './soloSeasonEngine';
-import {
-  Storyline, SoloTradeOffer, aggregateSeasonStats, applyChemistry, buildLeagueLeaders,
+  CareerProfile, InjuryEvent, SoloSettings, SoloWeek, Storyline, SoloTradeOffer,
+  achievementsForRun, aggregateSeasonStats, applyChemistry, buildAwards, buildLeagueLeaders,
   buildMvpRace, buildShareCardSvg, buildStoryline, buildTradeOffer, calculateBkRating,
-  calculateChemistry, soloGroupOf
-} from './soloImmersion';
+  calculateChemistry, defaultCareer, generatePlayerLines, makeSoloOpponent, playoffSnapshot,
+  ratingsWithInjuries, simulateInjuries, updateCareer
+} from './soloSeasonEngine';
 
 type Stage='draft'|'regular'|'playoffs'|'finished';
 type Group=keyof typeof ROSTER_REQUIREMENTS;

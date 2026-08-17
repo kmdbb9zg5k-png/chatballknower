@@ -10,9 +10,9 @@ import {
   Award,
   CheckCircle2,
   Clock,
-  ChevronRight,
-  TrendingUp,
-  DollarSign,
+  CalendarDays,
+  Repeat2,
+  Swords,
 } from 'lucide-react';
 import { League } from '../types';
 
@@ -29,112 +29,110 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
 }) => {
   const { leagues, currentUser, startDemoMode } = useBallKnower();
 
+  const openFantasy = () => {
+    document.getElementById('nav-tab-fantasy')?.click();
+  };
+
+  const openSolo = () => {
+    document.getElementById('nav-tab-solo-mobile')?.click();
+  };
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] pb-16 bg-[#0A0A0A] text-white">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-white/5 bg-[#121212] py-14 sm:py-20">
-        <div className="relative mx-auto max-w-5xl px-4 sm:px-8 text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 rounded-sm border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-1 text-[11px] font-black uppercase tracking-widest text-[#D4AF37] mb-6">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#0A0A0A] pb-16 text-white">
+      <section className="relative overflow-hidden border-b border-white/5 bg-[#111] py-12 sm:py-16">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,.14),transparent_48%)]" />
+        <div className="relative mx-auto max-w-5xl px-4 text-center sm:px-8">
+          <div className="mb-5 inline-flex items-center gap-2 border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[.22em] text-[#D4AF37]">
             <Trophy className="h-3.5 w-3.5" />
-            <span>FANTASY DRAFT ORDER CAP SIMULATOR</span>
+            Full Fantasy Football • Ball Knower Built In
           </div>
 
-          {/* Headline */}
-          <h1 className="font-display text-5xl font-black tracking-tighter text-white sm:text-7xl lg:text-8xl uppercase">
-            PROVE YOU <span className="text-[#D4AF37]">KNOW BALL.</span>
+          <h1 className="font-display text-5xl font-black uppercase leading-[.9] tracking-tighter sm:text-7xl lg:text-8xl">
+            RUN YOUR LEAGUE.<br />
+            <span className="text-[#D4AF37]">PROVE YOU KNOW BALL.</span>
           </h1>
 
-          {/* Subheadline */}
-          <p className="mx-auto mt-4 max-w-2xl text-sm sm:text-base font-bold uppercase tracking-widest text-zinc-400 leading-relaxed">
-            Build the best 20-man roster under the $301.2M cap. Survive the league season. Earn your fantasy draft order.
+          <p className="mx-auto mt-6 max-w-3xl text-sm font-semibold leading-6 text-zinc-400 sm:text-base">
+            Create the league, schedule the draft, draft real NFL players, manage lineups, waivers and trades, then fight through the playoffs. Want draft order to mean something? Turn on the Ball Knower Challenge and earn it first.
           </p>
 
-          {/* Primary Action Buttons */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
-            <button
-              id="hero-create-league-btn"
-              onClick={onOpenCreateLeague}
-              className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 rounded-sm bg-[#D4AF37] px-6 py-4 text-xs font-black uppercase tracking-widest text-black shadow-lg shadow-[#D4AF37]/20 hover:bg-amber-300 transition-colors cursor-pointer"
-            >
-              <Shield className="h-4 w-4 fill-black" />
-              <span>CREATE LEAGUE</span>
+          <div className="mx-auto mt-8 grid max-w-xl gap-3 sm:grid-cols-2">
+            <button onClick={openFantasy} className="flex min-h-[56px] items-center justify-center gap-2 bg-[#D4AF37] px-6 py-4 text-sm font-black uppercase tracking-wider text-black transition-colors hover:bg-amber-300">
+              <Users className="h-4 w-4" /> Fantasy Football
             </button>
-
-            <button
-              id="hero-join-league-btn"
-              onClick={onOpenJoinLeague}
-              className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 rounded-sm border border-white/10 bg-[#1A1A1A] px-6 py-4 text-xs font-black uppercase tracking-widest text-white hover:bg-zinc-800 hover:border-white/20 transition-colors cursor-pointer"
-            >
-              <Users className="h-4 w-4 text-[#D4AF37]" />
-              <span>JOIN LEAGUE</span>
+            <button onClick={openSolo} className="flex min-h-[56px] items-center justify-center gap-2 border border-white/10 bg-[#1A1A1A] px-6 py-4 text-sm font-black uppercase tracking-wider text-white transition-colors hover:border-white/20 hover:bg-zinc-800">
+              <Play className="h-4 w-4 text-[#D4AF37]" /> Solo Franchise
             </button>
           </div>
 
-          {/* Demo Button */}
-          <div className="mt-4">
-            <button
-              id="hero-try-demo-btn"
-              onClick={startDemoMode}
-              className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-zinc-500 hover:text-[#D4AF37] px-3 py-1.5 rounded-sm transition-colors"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" />
-              <span>TRY DEMO — Test drive without sign up</span>
-              <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
+          <button onClick={startDemoMode} className="mt-4 inline-flex items-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-zinc-500 transition-colors hover:text-[#D4AF37]">
+            <Sparkles className="h-3.5 w-3.5 text-[#D4AF37]" /> Try Ball Knower Demo <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      </section>
 
-          {/* Philosophy Banner */}
-          <div className="mt-10 mx-auto max-w-2xl rounded-lg border border-white/5 bg-[#0F0F0F] p-4 text-xs text-zinc-400">
-            <p className="leading-relaxed font-bold">
-              <strong className="text-white uppercase tracking-wider">The Ball Knower Principle:</strong> Everyone gets the exact same NFL players. Everyone gets the exact same $301.2M salary cap. Your positional valuation, balance, and football IQ determine who earns Pick #1.
-            </p>
+      <section className="mx-auto max-w-5xl px-4 pt-9 sm:px-8">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { n: '01', icon: Users, title: 'Create League', text: 'Invite the group and choose scoring, teams, waivers and format.' },
+            { n: '02', icon: Swords, title: 'Choose Draft Order', text: 'Random, commissioner controlled, or earn it with Ball Knower.' },
+            { n: '03', icon: CalendarDays, title: 'Draft & Play', text: 'Schedule draft night, build rosters and battle every NFL week.' },
+            { n: '04', icon: Trophy, title: 'Win The League', text: 'Trades, waivers, standings, playoffs and permanent league history.' },
+          ].map(({ n, icon: Icon, title, text }) => (
+            <div key={n} className="border border-white/5 bg-[#121212] p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex h-9 w-9 items-center justify-center border border-[#D4AF37]/25 bg-[#D4AF37]/10 text-[#D4AF37]"><Icon className="h-4 w-4" /></div>
+                <span className="font-mono text-[10px] font-black text-zinc-700">{n}</span>
+              </div>
+              <h3 className="mt-4 font-display text-lg font-black uppercase">{title}</h3>
+              <p className="mt-2 text-xs font-medium leading-5 text-zinc-500">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-4 pt-10 sm:px-8">
+        <div className="overflow-hidden border border-[#D4AF37]/30 bg-[#111]">
+          <div className="grid gap-0 lg:grid-cols-[1.35fr_.65fr]">
+            <div className="p-6 sm:p-8">
+              <div className="text-[10px] font-black uppercase tracking-[.24em] text-[#D4AF37]">Signature Optional Feature</div>
+              <h2 className="mt-2 font-display text-3xl font-black uppercase leading-none sm:text-4xl">BALL KNOWER<br/><span className="text-[#D4AF37]">DRAFT ORDER CHALLENGE</span></h2>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">
+                Everyone gets the same NFL player pool and the same $301.2M cap. Build the smartest team, survive the simulation, and the final standings become your real fantasy draft order.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                <span className="border border-white/10 bg-[#171717] px-3 py-2">Same Player Pool</span>
+                <span className="border border-white/10 bg-[#171717] px-3 py-2">Same Cap</span>
+                <span className="border border-white/10 bg-[#171717] px-3 py-2">Earn Your Pick</span>
+              </div>
+            </div>
+            <div className="flex flex-col justify-center gap-3 border-t border-white/5 bg-[#0D0D0D] p-6 lg:border-l lg:border-t-0">
+              <button onClick={onOpenCreateLeague} className="flex min-h-[50px] items-center justify-center gap-2 bg-[#D4AF37] px-5 py-3 text-xs font-black uppercase tracking-wider text-black hover:bg-amber-300"><Shield className="h-4 w-4" /> Start Challenge</button>
+              <button onClick={onOpenJoinLeague} className="flex min-h-[50px] items-center justify-center gap-2 border border-white/10 bg-[#181818] px-5 py-3 text-xs font-black uppercase tracking-wider text-white hover:bg-zinc-800"><Users className="h-4 w-4 text-[#D4AF37]" /> Join Challenge Code</button>
+              <button onClick={openFantasy} className="text-xs font-black uppercase tracking-wider text-[#D4AF37]">Use inside a Fantasy League →</button>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* User's Leagues Section */}
-      <section className="mx-auto max-w-5xl px-4 sm:px-8 pt-10">
-        <div className="flex flex-col gap-4 mb-6 pb-4 border-b border-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <div className="min-w-0">
-            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-white flex items-center gap-2 leading-none">
-              <Trophy className="h-5 w-5 shrink-0 text-[#D4AF37]" />
-              <span>YOUR LEAGUES</span>
-            </h2>
-            <p className="text-[10px] sm:text-[11px] text-zinc-500 uppercase tracking-[0.16em] font-bold mt-2 leading-relaxed">
-              Active leagues & simulations
-            </p>
+      <section className="mx-auto max-w-5xl px-4 pt-10 sm:px-8">
+        <div className="mb-5 flex flex-col gap-3 border-b border-white/5 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[.2em] text-[#D4AF37]">Optional Competition Mode</div>
+            <h2 className="mt-1 font-display text-2xl font-black uppercase">Your Draft Order Challenges</h2>
+            <p className="mt-1 text-xs text-zinc-500">These can stand alone or feed the results into a Fantasy league.</p>
           </div>
-
-          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:shrink-0">
-            <button
-              onClick={onOpenCreateLeague}
-              className="w-full sm:w-auto min-h-[48px] flex items-center justify-center rounded-md border border-[#D4AF37]/35 bg-[#D4AF37]/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-[#E7C95F] hover:bg-[#D4AF37]/20 transition-colors"
-            >
-              + Create
-            </button>
-            <button
-              onClick={onOpenJoinLeague}
-              className="w-full sm:w-auto min-h-[48px] flex items-center justify-center rounded-md border border-white/10 bg-[#1A1A1A] px-4 py-3 text-xs font-black uppercase tracking-wider text-zinc-200 hover:bg-zinc-800 hover:border-white/20 transition-colors"
-            >
-              Join Code
-            </button>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button onClick={onOpenCreateLeague} className="min-h-[44px] border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 text-xs font-black uppercase text-[#E7C95F]">+ Challenge</button>
+            <button onClick={onOpenJoinLeague} className="min-h-[44px] border border-white/10 bg-[#181818] px-4 text-xs font-black uppercase text-zinc-200">Join Code</button>
           </div>
         </div>
 
         {leagues.length === 0 ? (
-          <div className="rounded-lg border border-white/5 bg-[#121212] p-10 text-center">
-            <Shield className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
-            <h3 className="text-base font-black uppercase text-white mb-1 tracking-wider">No Leagues Yet</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-5 font-medium">
-              Create a league for your fantasy group or enter a league code to compete for draft positions.
-            </p>
-            <button
-              onClick={onOpenCreateLeague}
-              className="inline-flex items-center gap-2 rounded-sm bg-[#D4AF37] px-5 py-2.5 text-xs font-black uppercase tracking-wider text-black hover:bg-amber-300 transition-colors"
-            >
-              Create Your First League
-            </button>
+          <div className="border border-white/5 bg-[#121212] p-8 text-center">
+            <Trophy className="mx-auto h-10 w-10 text-zinc-700" />
+            <h3 className="mt-3 font-display text-lg font-black uppercase">No Draft Order Challenges Yet</h3>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-zinc-500">You do not need one to run Fantasy. Turn it on only when your league wants everyone to compete for draft position.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
@@ -143,170 +141,37 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               const isReady = myMember?.status === 'ready';
               const submittedCount = league.members.filter(m => m.status === 'ready').length;
               const isCompleted = league.status === 'completed';
-              const userDraftPick = isCompleted && league.seasonResult
-                ? league.seasonResult.draftOrder.find(d => d.memberId === myMember?.id)?.pickNumber
-                : null;
+              const userDraftPick = isCompleted && league.seasonResult ? league.seasonResult.draftOrder.find(d => d.memberId === myMember?.id)?.pickNumber : null;
 
               return (
-                <div
-                  key={league.id}
-                  id={`league-card-${league.id}`}
-                  className="group relative flex flex-col justify-between rounded-lg border border-white/5 bg-[#121212] p-5 hover:border-[#D4AF37]/50 transition-all shadow-md"
-                >
-                  <div>
-                    {/* Top Row */}
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black text-[#D4AF37] bg-zinc-800 px-2 py-0.5 rounded-sm">
-                            {league.code}
-                          </span>
-                          {league.commissionerId === currentUser?.id && (
-                            <span className="rounded-sm bg-zinc-800 px-1.5 py-0.5 text-[9px] font-black text-zinc-300 uppercase tracking-wider border border-white/5">
-                              COMMISSIONER
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="font-display text-xl font-black uppercase tracking-tight text-white mt-2 group-hover:text-[#D4AF37] transition-colors">
-                          {league.name}
-                        </h3>
+                <div key={league.id} className="border border-white/5 bg-[#121212] p-5 transition-colors hover:border-[#D4AF37]/40">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="bg-zinc-800 px-2 py-1 font-mono text-[10px] font-black text-[#D4AF37]">{league.code}</span>
+                        {league.commissionerId === currentUser?.id && <span className="border border-white/5 bg-zinc-800 px-2 py-1 text-[8px] font-black uppercase text-zinc-300">Commish</span>}
                       </div>
-
-                      {/* Status Pill */}
-                      {isCompleted ? (
-                        <div className="flex items-center gap-1 rounded-sm bg-[#00FF00]/10 border border-[#00FF00]/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#00FF00]">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span>Complete</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 rounded-sm bg-[#D4AF37]/10 border border-[#D4AF37]/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#D4AF37]">
-                          <Clock className="h-3 w-3" />
-                          <span>Drafting</span>
-                        </div>
-                      )}
+                      <h3 className="mt-3 truncate font-display text-xl font-black uppercase">{league.name}</h3>
                     </div>
-
-                    {/* Stats bar */}
-                    <div className="grid grid-cols-3 gap-2 rounded-sm bg-[#0A0A0A] p-3 border border-white/5 my-3 text-center">
-                      <div>
-                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Members</p>
-                        <p className="text-sm font-black text-zinc-200 mt-0.5 font-mono">
-                          {league.members.length}/{league.maxMembers}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Submitted</p>
-                        <p className="text-sm font-black text-[#D4AF37] mt-0.5 font-mono">
-                          {submittedCount}/{league.members.length}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Salary Cap</p>
-                        <p className="text-sm font-black text-zinc-200 mt-0.5 font-mono">
-                          ${league.salaryCap}M
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Final Pick result if completed */}
-                    {isCompleted && userDraftPick && (
-                      <div className="rounded-sm bg-[#1A1A1A] border border-[#D4AF37]/40 p-3 mb-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Award className="h-5 w-5 text-[#D4AF37]" />
-                          <div>
-                            <p className="text-[9px] text-[#D4AF37] font-black uppercase tracking-wider">Your Final Result</p>
-                            <p className="text-sm font-black text-white uppercase tracking-tight">
-                              FANTASY PICK #{userDraftPick}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-xs font-black text-[#D4AF37] uppercase">
-                          {userDraftPick === 1 ? '👑 1st Pick' : `#${userDraftPick} Pick`}
-                        </span>
-                      </div>
-                    )}
+                    {isCompleted ? <span className="flex items-center gap-1 border border-green-500/25 bg-green-500/5 px-2 py-1 text-[9px] font-black uppercase text-green-400"><CheckCircle2 className="h-3 w-3"/>Complete</span> : <span className="flex items-center gap-1 border border-[#D4AF37]/25 bg-[#D4AF37]/5 px-2 py-1 text-[9px] font-black uppercase text-[#D4AF37]"><Clock className="h-3 w-3"/>Active</span>}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-white/5">
-                    {isCompleted ? (
-                      <button
-                        onClick={() => onSelectLeague(league, 'simulation')}
-                        className="w-full flex items-center justify-center gap-2 rounded-sm bg-[#D4AF37] py-2.5 text-xs font-black uppercase tracking-widest text-black hover:bg-amber-300 transition-all"
-                      >
-                        <Award className="h-3.5 w-3.5" />
-                        <span>View Final Draft Order</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => onSelectLeague(league, 'lobby')}
-                          className="flex-1 rounded-sm border border-white/10 bg-[#1A1A1A] py-2 text-xs font-black uppercase tracking-wider text-zinc-200 hover:bg-zinc-800 transition-colors"
-                        >
-                          Lobby ({submittedCount}/{league.members.length})
-                        </button>
-                        <button
-                          onClick={() => onSelectLeague(league, 'draft')}
-                          className="flex-1 flex items-center justify-center gap-1 rounded-sm bg-white text-black hover:bg-[#D4AF37] py-2 text-xs font-black uppercase tracking-wider transition-colors"
-                        >
-                          <Shield className="h-3 w-3" />
-                          <span>{isReady ? 'Edit Roster' : 'Build Team'}</span>
-                        </button>
-                      </>
-                    )}
+                  <div className="mt-4 grid grid-cols-3 gap-2 border border-white/5 bg-[#0A0A0A] p-3 text-center">
+                    <div><div className="text-[8px] font-black uppercase text-zinc-600">Managers</div><div className="mt-1 text-sm font-black">{league.members.length}/{league.maxMembers}</div></div>
+                    <div><div className="text-[8px] font-black uppercase text-zinc-600">Ready</div><div className="mt-1 text-sm font-black text-[#D4AF37]">{submittedCount}/{league.members.length}</div></div>
+                    <div><div className="text-[8px] font-black uppercase text-zinc-600">Cap</div><div className="mt-1 text-sm font-black">${league.salaryCap}M</div></div>
+                  </div>
+
+                  {isCompleted && userDraftPick && <div className="mt-3 flex items-center justify-between border border-[#D4AF37]/30 bg-[#D4AF37]/5 p-3"><div className="flex items-center gap-2"><Award className="h-5 w-5 text-[#D4AF37]"/><div><div className="text-[8px] font-black uppercase text-[#D4AF37]">Earned Draft Position</div><div className="font-black">PICK #{userDraftPick}</div></div></div><Repeat2 className="h-4 w-4 text-zinc-500" /></div>}
+
+                  <div className="mt-4 flex gap-2 border-t border-white/5 pt-3">
+                    {isCompleted ? <button onClick={() => onSelectLeague(league, 'simulation')} className="flex w-full items-center justify-center gap-2 bg-[#D4AF37] py-3 text-xs font-black uppercase text-black"><Award className="h-3.5 w-3.5"/>View Draft Order</button> : <><button onClick={() => onSelectLeague(league, 'lobby')} className="flex-1 border border-white/10 bg-[#1A1A1A] py-3 text-xs font-black uppercase">Lobby</button><button onClick={() => onSelectLeague(league, 'draft')} className="flex-1 bg-white py-3 text-xs font-black uppercase text-black hover:bg-[#D4AF37]">{isReady ? 'Edit Team' : 'Build Team'}</button></>}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </section>
-
-      {/* How It Works Explainer */}
-      <section className="mx-auto max-w-5xl px-4 sm:px-8 pt-16">
-        <div className="text-center mb-8">
-          <h2 className="font-display text-3xl font-black uppercase tracking-tight text-white">HOW BALL KNOWER WORKS</h2>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">Simple, transparent, and built on real football logic</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-white/5 bg-[#121212] p-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-zinc-800 text-[#D4AF37] font-black font-mono text-sm mb-3">
-              01
-            </div>
-            <h3 className="font-display text-base font-black uppercase tracking-tight text-white mb-1.5">
-              Build Under The Cap
-            </h3>
-            <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-              Every fantasy owner drafts a 20-man NFL team (10 offense, 10 defense) under the identical $301.2M salary cap from the active NFL player pool.
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-white/5 bg-[#121212] p-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-zinc-800 text-[#D4AF37] font-black font-mono text-sm mb-3">
-              02
-            </div>
-            <h3 className="font-display text-base font-black uppercase tracking-tight text-white mb-1.5">
-              League Simulation
-            </h3>
-            <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-              The engine simulates a full league head-to-head season. It rewards pass protection, trench dominance, defensive synergy, and penalizes flaws.
-            </p>
-          </div>
-
-          <div className="rounded-lg border border-white/5 bg-[#121212] p-5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-zinc-800 text-[#D4AF37] font-black font-mono text-sm mb-3">
-              03
-            </div>
-            <h3 className="font-display text-base font-black uppercase tracking-tight text-white mb-1.5">
-              Earn Draft Order
-            </h3>
-            <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-              The #1 team in Ball Knower standings earns the #1 overall pick in your real fantasy football draft. 2nd place gets Pick #2, and so on.
-            </p>
-          </div>
-        </div>
       </section>
     </div>
   );

@@ -97,7 +97,7 @@ function BallKnowerApp() {
   const [isCreateLeagueOpen, setIsCreateLeagueOpen] = useState(false);
   const [isJoinLeagueOpen, setIsJoinLeagueOpen] = useState(false);
   const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
-  const [isIntroOpen, setIsIntroOpen] = useState(true);
+  const [isIntroOpen, setIsIntroOpen] = useState<boolean>(true);
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {

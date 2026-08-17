@@ -12,7 +12,7 @@ import { JoinLeagueModal } from './JoinLeagueModal';
 import { CinematicIntro } from './CinematicIntro';
 import { DatabaseVerificationModal } from './DatabaseVerificationModal';
 import { SoloMode } from './SoloMode';
-import { HallOfFame } from './HallOfFame';
+import { HallOfFame, NFLNewsPage } from './HallOfFame';
 import { PLAYERS_DATABASE } from './players';
 import { League } from './types';
 import {
@@ -177,7 +177,7 @@ function BallKnowerApp() {
   const { activeLeague, setActiveLeagueId, toastMessage, joinLeague } = useBallKnower();
   const { setIntroActive } = useSoundtrack();
 
-  const [currentTab, setCurrentTab] = useState<'home' | 'solo' | 'legacy' | 'lobby' | 'draft' | 'simulation'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation'>('home');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCreateLeagueOpen, setIsCreateLeagueOpen] = useState(false);
   const [isJoinLeagueOpen, setIsJoinLeagueOpen] = useState(false);
@@ -256,6 +256,7 @@ function BallKnowerApp() {
           <main className="w-full flex-1">
             {currentTab === 'home' && <HomeDashboard onOpenCreateLeague={() => setIsCreateLeagueOpen(true)} onOpenJoinLeague={() => setIsJoinLeagueOpen(true)} onSelectLeague={handleSelectLeague} />}
             {currentTab === 'solo' && <SoloMode />}
+            {currentTab === 'news' && <NFLNewsPage />}
             {currentTab === 'legacy' && <HallOfFame />}
             {currentTab === 'lobby' && activeLeague && <LeagueLobby league={activeLeague} onGoToDraft={() => setCurrentTab('draft')} onGoToSimulation={() => setCurrentTab('simulation')} />}
             {currentTab === 'draft' && <DraftRoom onBackToLobby={() => setCurrentTab(activeLeague ? 'lobby' : 'home')} onSubmitSuccess={() => setCurrentTab(activeLeague ? 'lobby' : 'home')} />}

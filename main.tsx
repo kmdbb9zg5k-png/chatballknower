@@ -5,6 +5,7 @@ import {NFL_TEAMS, PLAYERS_DATABASE} from './players';
 import './index.css';
 
 const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-roster-map?key=ballknower-roster-v1';
+const HEADSHOT_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-player-headshot';
 const TEAM_CACHE_KEY='ballknower_2026_official_roster_audit_v5';
 const TEAM_CACHE_TTL=30*60*1000;
 
@@ -91,6 +92,113 @@ function normalizePlayerName(value:string){
     .replace(/[^a-z0-9]+/g,' ')
     .trim()
     .replace(/\s+/g,' ');
+}
+
+function headshotUrl(player:any){
+  const params=new URLSearchParams({
+    name:String(player?.name||''),
+    team:String(player?.team||''),
+    position:String(player?.position||''),
+  });
+  return `${HEADSHOT_URL}?${params.toString()}`;
+}
+
+function initialsFallback(name:string){
+  const initials=String(name||'BK').trim().split(/\s+/).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('')||'BK';
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="120" height="140"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#242424"/><stop offset="1" stop-color="#0d0d0d"/></linearGradient></defs><rect width="120" height="140" rx="12" fill="url(#g)"/><rect x="2" y="2" width="116" height="136" rx="10" fill="none" stroke="#D4AF37" stroke-width="3"/><text x="60" y="84" text-anchor="middle" fill="#D4AF37" font-family="Arial" font-weight="900" font-size="38">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function createPlayerHeadshot(player:any,width:number,height:number){
+  const img=document.createElement('img');
+  img.dataset.bkPlayerHeadshot='1';
+  img.src=headshotUrl(player);
+  img.alt=`${player.name} headshot`;
+  img.loading='lazy';
+  img.decoding='async';
+  img.width=width;
+  img.height=height;
+  img.style.width=`${width}px`;
+  img.style.height=`${height}px`;
+  img.style.objectFit='cover';
+  img.style.objectPosition='center top';
+  img.style.flex='0 0 auto';
+  img.style.borderRadius='8px';
+  img.style.border='1px solid rgba(212,175,55,.35)';
+  img.style.background='linear-gradient(180deg,#222,#0d0d0d)';
+  img.style.boxShadow='inset 0 -12px 24px rgba(0,0,0,.28)';
+  img.onerror=()=>{
+    img.onerror=null;
+    img.src=initialsFallback(player.name);
+  };
+  return img;
+}
+
+function installMaddenPlayerHeadshots(){
+  const root=document.getElementById('root');
+  if(!root)return;
+
+  const byId=new Map<string,any>();
+  const byName=new Map<string,any[]>();
+  for(const player of PLAYERS_DATABASE){
+    byId.set(String(player.id),player);
+    const key=normalizePlayerName(player.name);
+    const bucket=byName.get(key)||[];
+    bucket.push(player);
+    byName.set(key,bucket);
+  }
+
+  const chooseByText=(name:string,text:string)=>{
+    const options=byName.get(normalizePlayerName(name))||[];
+    if(options.length<=1)return options[0];
+    const upper=String(text||'').toUpperCase();
+    return options.find(p=>upper.includes(String(p.team||'').toUpperCase())&&upper.includes(String(p.position||'').toUpperCase()))||options[0];
+  };
+
+  const enhance=()=>{
+    // Main Scout Market / Draft Board cards already expose a permanent player id.
+    for(const card of Array.from(root.querySelectorAll<HTMLElement>('[id^="player-card-"]'))){
+      if(card.dataset.bkHeadshotReady==='1')continue;
+      const playerId=card.id.slice('player-card-'.length);
+      const player=byId.get(playerId);
+      if(!player)continue;
+      const info=card.firstElementChild as HTMLElement|null;
+      const image=createPlayerHeadshot(player,64,74);
+      card.insertBefore(image,card.firstChild);
+      card.style.columnGap='11px';
+      if(info)info.style.flex='1 1 auto';
+      card.dataset.bkHeadshotReady='1';
+    }
+
+    // Solo draft cards use the player's visible name instead of an id.
+    for(const button of Array.from(root.querySelectorAll<HTMLButtonElement>('button'))){
+      if(button.dataset.bkHeadshotReady==='1')continue;
+      const nameNode=button.querySelector('b.block.truncate');
+      if(!nameNode)continue;
+      const name=String(nameNode.textContent||'').trim();
+      const player=chooseByText(name,button.textContent||'');
+      if(!player)continue;
+      const image=createPlayerHeadshot(player,56,64);
+      button.insertBefore(image,button.firstChild);
+      button.style.gridTemplateColumns='56px minmax(0,1fr) auto auto auto';
+      button.style.columnGap='10px';
+      button.dataset.bkHeadshotReady='1';
+    }
+  };
+
+  let queued=false;
+  const queueEnhance=()=>{
+    if(queued)return;
+    queued=true;
+    window.requestAnimationFrame(()=>{
+      queued=false;
+      enhance();
+    });
+  };
+
+  enhance();
+  const observer=new MutationObserver(queueEnhance);
+  observer.observe(root,{subtree:true,childList:true});
 }
 
 function positionFamily(value:string){
@@ -251,6 +359,7 @@ function renderBallKnower(){
     </StrictMode>,
   );
   installRealSoloTeamNames();
+  installMaddenPlayerHeadshots();
 }
 
 void syncCurrentTeams().finally(renderBallKnower);

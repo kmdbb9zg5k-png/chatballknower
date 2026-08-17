@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Award, Crown, Play, Plus, RotateCcw, Search, Share2, ShieldAlert, Trash2, Trophy } from 'lucide-react';
+import { Activity, Award, BarChart3, Crown, Flame, Play, Plus, RotateCcw, Search, Share2, ShieldAlert, Sparkles, Trash2, Trophy, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { PLAYERS_DATABASE } from './players';
 import { DEFAULT_SALARY_CAP, LeagueMember, Player, ROSTER_REQUIREMENTS } from './types';
 import { getDraftPositionGroup, validateRosterShape } from './rosterRules';
@@ -13,282 +13,118 @@ import {
   defaultCareer, generatePlayerLines, makeSoloOpponent, playoffSnapshot, ratingsWithInjuries,
   simulateInjuries, updateCareer
 } from './soloSeasonEngine';
+import {
+  Storyline, SoloTradeOffer, aggregateSeasonStats, applyChemistry, buildLeagueLeaders,
+  buildMvpRace, buildShareCardSvg, buildStoryline, buildTradeOffer, calculateBkRating,
+  calculateChemistry, soloGroupOf
+} from './soloImmersion';
 
-type Stage = 'draft' | 'regular' | 'playoffs' | 'finished';
-type Group = keyof typeof ROSTER_REQUIREMENTS;
-type PlayoffResult = { round:string; opponent:string; you:number; them:number; won:boolean };
+type Stage='draft'|'regular'|'playoffs'|'finished';
+type Group=keyof typeof ROSTER_REQUIREMENTS;
+type PlayoffResult={round:string;opponent:string;you:number;them:number;won:boolean};
 
-const GROUPS:Group[] = ['QB','RB','WR','TE','OL','DL_EDGE','LB','CB','S','K','P'];
-const BACKUPS:Record<Group,number> = { QB:1,RB:1,WR:1,TE:1,OL:1,DL_EDGE:1,LB:1,CB:1,S:1,K:0,P:0 };
-const TOTALS:Record<Group,number> = GROUPS.reduce((o,g)=>{ o[g]=ROSTER_REQUIREMENTS[g]+BACKUPS[g]; return o; },{} as Record<Group,number>);
-const STARTERS = Object.values(ROSTER_REQUIREMENTS).reduce((a,b)=>a+b,0);
-const DEPTH = Object.values(BACKUPS).reduce((a,b)=>a+b,0);
-const SOLO_SIZE = STARTERS + DEPTH;
-const RUN_KEY = 'ballknower_solo_run_v2';
-const CAREER_KEY = 'ballknower_solo_career_v2';
-const LEGACY_CAREER_KEY = 'ballknower_solo_career_v1';
+const GROUPS:Group[]=['QB','RB','WR','TE','OL','DL_EDGE','LB','CB','S','K','P'];
+const BACKUPS:Record<Group,number>={QB:1,RB:1,WR:1,TE:1,OL:1,DL_EDGE:1,LB:1,CB:1,S:1,K:0,P:0};
+const TOTALS:Record<Group,number>=GROUPS.reduce((o,g)=>{o[g]=ROSTER_REQUIREMENTS[g]+BACKUPS[g];return o;},{} as Record<Group,number>);
+const STARTERS=Object.values(ROSTER_REQUIREMENTS).reduce((a,b)=>a+b,0);
+const DEPTH=Object.values(BACKUPS).reduce((a,b)=>a+b,0);
+const SOLO_SIZE=STARTERS+DEPTH;
+const RUN_KEY='ballknower_solo_run_v3';
+const CAREER_KEY='ballknower_solo_career_v2';
+const LEGACY_CAREER_KEY='ballknower_solo_career_v1';
 
-const label = (g:string) => g === 'DL_EDGE' ? 'DL/EDGE' : g;
-const groupOf = (p:Player) => getDraftPositionGroup(p) as Group;
-const count = (players:Player[],g:Group) => players.filter(p=>groupOf(p)===g).length;
-const totalCount = (starters:Player[],depth:Player[],g:Group) => count(starters,g)+count(depth,g);
+const label=(g:string)=>g==='DL_EDGE'?'DL/EDGE':g;
+const groupOf=(p:Player)=>getDraftPositionGroup(p) as Group;
+const count=(players:Player[],g:Group)=>players.filter(p=>groupOf(p)===g).length;
+const totalCount=(starters:Player[],depth:Player[],g:Group)=>count(starters,g)+count(depth,g);
 
-function minimumFinishCost(starters:Player[],depth:Player[]) {
-  const used = new Set([...starters,...depth].map(p=>p.id));
-  let cost = 0;
-  for (const g of GROUPS) {
-    const need = Math.max(0,TOTALS[g]-totalCount(starters,depth,g));
-    if (!need) continue;
-    const cheap = PLAYERS_DATABASE.filter(p=>!used.has(p.id)&&groupOf(p)===g).sort((a,b)=>a.salary-b.salary).slice(0,need);
-    if (cheap.length < need) return Infinity;
-    cost += cheap.reduce((n,p)=>n+p.salary,0);
-  }
-  return cost;
+function minimumFinishCost(starters:Player[],depth:Player[]){
+  const used=new Set([...starters,...depth].map(p=>p.id)); let cost=0;
+  for(const g of GROUPS){const need=Math.max(0,TOTALS[g]-totalCount(starters,depth,g));if(!need)continue;const cheap=PLAYERS_DATABASE.filter(p=>!used.has(p.id)&&groupOf(p)===g&&Number.isFinite(p.salary)).sort((a,b)=>a.salary-b.salary).slice(0,need);if(cheap.length<need)return Infinity;cost+=cheap.reduce((n,p)=>n+p.salary,0);} return cost;
 }
 
-function effectiveLineup(starters:Player[],depth:Player[],injuries:InjuryEvent[]) {
-  const out = [...starters];
-  const used = new Set<string>();
-  for (const injury of injuries.filter(i=>i.weeks>0)) {
-    const idx = out.findIndex(p=>p.id===injury.playerId);
-    if (idx < 0) continue;
-    const g = groupOf(out[idx]);
-    const next = depth.filter(p=>groupOf(p)===g&&!used.has(p.id)).sort((a,b)=>b.ovr-a.ovr)[0];
-    if (next) { out[idx]=next; used.add(next.id); }
-  }
+function effectiveLineup(starters:Player[],depth:Player[],injuries:InjuryEvent[]){
+  const out=[...starters];const used=new Set<string>();
+  for(const injury of injuries.filter(i=>i.weeks>0)){const idx=out.findIndex(p=>p.id===injury.playerId);if(idx<0)continue;const g=groupOf(out[idx]);const next=depth.filter(p=>groupOf(p)===g&&!used.has(p.id)).sort((a,b)=>b.ovr-a.ovr)[0];if(next){out[idx]=next;used.add(next.id);}}
   return out;
 }
 
-function smartScore(p:Player,starters:Player[]) {
-  const g = groupOf(p);
-  const needStarter = count(starters,g) < ROSTER_REQUIREMENTS[g];
-  const weight:Record<Group,number> = {QB:1.28,RB:.95,WR:1.12,TE:1.02,OL:1.10,DL_EDGE:1.16,LB:.98,CB:1.12,S:1.01,K:.72,P:.65};
-  return p.ovr*weight[g] + Math.min(30,p.ovr/Math.max(.8,p.salary)*1.7) + (needStarter?15:4) - p.salary*.1;
+function smartScore(p:Player,starters:Player[]){
+  const g=groupOf(p);const needStarter=count(starters,g)<ROSTER_REQUIREMENTS[g];const weight:Record<Group,number>={QB:1.28,RB:.95,WR:1.12,TE:1.02,OL:1.10,DL_EDGE:1.16,LB:.98,CB:1.12,S:1.01,K:.72,P:.65};
+  return p.ovr*weight[g]+Math.min(30,p.ovr/Math.max(.8,p.salary)*1.7)+(needStarter?15:4)-p.salary*.1;
 }
 
-export const SoloMode:React.FC = () => {
-  const { currentUser } = useBallKnower();
-  const [stage,setStage] = useState<Stage>('draft');
-  const [roster,setRoster] = useState<Player[]>([]);
-  const [bench,setBench] = useState<Player[]>([]);
-  const [weeks,setWeeks] = useState<SoloWeek[]>([]);
-  const [injuries,setInjuries] = useState<InjuryEvent[]>([]);
-  const [playoffs,setPlayoffs] = useState<PlayoffResult[]>([]);
-  const [query,setQuery] = useState('');
-  const [position,setPosition] = useState('ALL');
-  const [message,setMessage] = useState('');
-  const [settings,setSettings] = useState<SoloSettings>({difficulty:'pro',injuries:'normal'});
-  const [career,setCareer] = useState<CareerProfile>(()=>{
-    try {
-      const raw = localStorage.getItem(CAREER_KEY) || localStorage.getItem(LEGACY_CAREER_KEY);
-      const saved = raw ? JSON.parse(raw) : null;
-      return saved ? {...defaultCareer(),...saved,achievements:Array.isArray(saved.achievements)?saved.achievements:[]} : defaultCareer();
-    } catch { return defaultCareer(); }
-  });
+export const SoloMode:React.FC=()=>{
+  const {currentUser}=useBallKnower();
+  const [stage,setStage]=useState<Stage>('draft'); const [roster,setRoster]=useState<Player[]>([]); const [bench,setBench]=useState<Player[]>([]); const [weeks,setWeeks]=useState<SoloWeek[]>([]); const [injuries,setInjuries]=useState<InjuryEvent[]>([]); const [playoffs,setPlayoffs]=useState<PlayoffResult[]>([]); const [storylines,setStorylines]=useState<Storyline[]>([]); const [tradeOffer,setTradeOffer]=useState<SoloTradeOffer|null>(null);
+  const [query,setQuery]=useState(''); const [position,setPosition]=useState('ALL'); const [message,setMessage]=useState(''); const [settings,setSettings]=useState<SoloSettings>({difficulty:'pro',injuries:'normal'});
+  const [career,setCareer]=useState<CareerProfile>(()=>{try{const raw=localStorage.getItem(CAREER_KEY)||localStorage.getItem(LEGACY_CAREER_KEY);const saved=raw?JSON.parse(raw):null;return saved?{...defaultCareer(),...saved,achievements:Array.isArray(saved.achievements)?saved.achievements:[]}:defaultCareer();}catch{return defaultCareer();}});
 
-  useEffect(()=>{
-    try {
-      const raw=localStorage.getItem(RUN_KEY); if(!raw) return;
-      const r=JSON.parse(raw);
-      if(!['regular','playoffs'].includes(r?.stage)||!Array.isArray(r.roster)||r.roster.length!==STARTERS||!Array.isArray(r.bench)||r.bench.length!==DEPTH){ localStorage.removeItem(RUN_KEY); return; }
-      setStage(r.stage); setRoster(r.roster); setBench(r.bench); setWeeks(Array.isArray(r.weeks)?r.weeks:[]);
-      setInjuries(Array.isArray(r.injuries)?r.injuries:[]); setPlayoffs(Array.isArray(r.playoffs)?r.playoffs:[]);
-      if(r.settings) setSettings(r.settings); setMessage('Restored your Solo season.');
-    } catch { localStorage.removeItem(RUN_KEY); }
-  },[]);
+  useEffect(()=>{try{const raw=localStorage.getItem(RUN_KEY);if(!raw)return;const r=JSON.parse(raw);if(!['regular','playoffs'].includes(r?.stage)||!Array.isArray(r.roster)||r.roster.length!==STARTERS||!Array.isArray(r.bench)||r.bench.length!==DEPTH){localStorage.removeItem(RUN_KEY);return;}setStage(r.stage);setRoster(r.roster);setBench(r.bench);setWeeks(Array.isArray(r.weeks)?r.weeks:[]);setInjuries(Array.isArray(r.injuries)?r.injuries:[]);setPlayoffs(Array.isArray(r.playoffs)?r.playoffs:[]);setStorylines(Array.isArray(r.storylines)?r.storylines:[]);setTradeOffer(r.tradeOffer||null);if(r.settings)setSettings(r.settings);setMessage('Restored your Solo franchise.');}catch{localStorage.removeItem(RUN_KEY);}},[]);
+  useEffect(()=>{if(stage!=='regular'&&stage!=='playoffs')return;try{localStorage.setItem(RUN_KEY,JSON.stringify({stage,roster,bench,weeks,injuries,playoffs,storylines,tradeOffer,settings}));}catch{}},[stage,roster,bench,weeks,injuries,playoffs,storylines,tradeOffer,settings]);
+  useEffect(()=>{if(stage==='finished')window.scrollTo({top:0,behavior:'smooth'});},[stage]);
 
-  useEffect(()=>{
-    if(stage!=='regular'&&stage!=='playoffs') return;
-    try { localStorage.setItem(RUN_KEY,JSON.stringify({stage,roster,bench,weeks,injuries,playoffs,settings})); } catch {}
-  },[stage,roster,bench,weeks,injuries,playoffs,settings]);
+  const selected=useMemo(()=>[...roster,...bench],[roster,bench]); const spent=useMemo(()=>selected.reduce((n,p)=>n+p.salary,0),[selected]); const remaining=DEFAULT_SALARY_CAP-spent;
+  const baseRatings=useMemo(()=>calculateTeamRatings(roster),[roster]); const chemistry=useMemo(()=>calculateChemistry(roster,bench),[roster,bench]); const ratings=useMemo(()=>applyChemistry(baseRatings,chemistry),[baseRatings,chemistry]); const grade=useMemo(()=>gradeDraft(roster,DEFAULT_SALARY_CAP),[roster]); const depthOvr=bench.length?Math.round(bench.reduce((n,p)=>n+p.ovr,0)/bench.length):0;
+  const starterErrors=validateRosterShape(roster); const depthErrors=GROUPS.filter(g=>count(bench,g)!==BACKUPS[g]); const valid=roster.length===STARTERS&&bench.length===DEPTH&&!starterErrors.length&&!depthErrors.length&&spent<=DEFAULT_SALARY_CAP;
+  const wins=weeks.filter(w=>w.won).length,losses=weeks.length-wins; const active=injuries.filter(i=>i.weeks>0); const allLines=weeks.flatMap(w=>Array.isArray(w.playerLines)?w.playerLines:[]); const seasonStats=useMemo(()=>aggregateSeasonStats(allLines),[weeks]); const awards=buildAwards(allLines); const injuryHistory=weeks.flatMap(w=>Array.isArray(w.injuries)?w.injuries:[]); const totals=weeks.reduce((a,w)=>{const home=w.game.homeMemberId==='solo-user';a.pf+=home?w.game.homeScore:w.game.awayScore;a.pa+=home?w.game.awayScore:w.game.homeScore;return a;},{pf:0,pa:0});
+  const leagueLeaders=useMemo(()=>buildLeagueLeaders(seasonStats,weeks.length),[seasonStats,weeks.length]); const mvpRace=useMemo(()=>buildMvpRace(seasonStats,weeks.length),[seasonStats,weeks.length]); const latestStory=storylines[0]; const careerRating=calculateBkRating(career);
 
-  useEffect(()=>{ if(stage==='finished') window.scrollTo({top:0,behavior:'smooth'}); },[stage]);
+  const available=useMemo(()=>PLAYERS_DATABASE.filter(p=>{if(selected.some(x=>x.id===p.id))return false;const g=groupOf(p);if(!GROUPS.includes(g)||totalCount(roster,bench,g)>=TOTALS[g])return false;if(query&&!`${p.name} ${p.team} ${p.position}`.toLowerCase().includes(query.toLowerCase()))return false;return position==='ALL'||g===position||p.position===position;}).sort((a,b)=>b.ovr-a.ovr).slice(0,180),[selected,roster,bench,query,position]);
 
-  const selected = useMemo(()=>[...roster,...bench],[roster,bench]);
-  const spent = useMemo(()=>selected.reduce((n,p)=>n+p.salary,0),[selected]);
-  const remaining = DEFAULT_SALARY_CAP-spent;
-  const ratings = useMemo(()=>calculateTeamRatings(roster),[roster]);
-  const grade = useMemo(()=>gradeDraft(roster,DEFAULT_SALARY_CAP),[roster]);
-  const depthOvr = bench.length ? Math.round(bench.reduce((n,p)=>n+p.ovr,0)/bench.length) : 0;
-  const starterErrors = validateRosterShape(roster);
-  const depthErrors = GROUPS.filter(g=>count(bench,g)!==BACKUPS[g]);
-  const valid = roster.length===STARTERS && bench.length===DEPTH && !starterErrors.length && !depthErrors.length && spent<=DEFAULT_SALARY_CAP;
-  const wins = weeks.filter(w=>w.won).length;
-  const losses = weeks.length-wins;
-  const active = injuries.filter(i=>i.weeks>0);
-  const allLines = weeks.flatMap(w=>Array.isArray(w.playerLines)?w.playerLines:[]);
-  const awards = buildAwards(allLines);
-  const injuryHistory = weeks.flatMap(w=>Array.isArray(w.injuries)?w.injuries:[]);
-  const totals = weeks.reduce((a,w)=>{ const home=w.game.homeMemberId==='solo-user'; a.pf+=home?w.game.homeScore:w.game.awayScore; a.pa+=home?w.game.awayScore:w.game.homeScore; return a; },{pf:0,pa:0});
-  const leaders = useMemo(()=>{
-    const m=new Map<string,{name:string,pos:string,score:number}>();
-    allLines.forEach(l=>{ const x=m.get(l.playerId)||{name:l.name,pos:l.position,score:0}; x.score+=l.fantasyScore; m.set(l.playerId,x); });
-    return [...m.values()].sort((a,b)=>b.score-a.score).slice(0,5);
-  },[weeks]);
+  const add=(p:Player)=>{const g=groupOf(p);if(totalCount(roster,bench,g)>=TOTALS[g])return setMessage(`${label(g)} is full.`);if(p.salary>remaining)return setMessage('That player puts you over the cap.');const isStarter=count(roster,g)<ROSTER_REQUIREMENTS[g];const nr=isStarter?[...roster,p]:roster,nb=isStarter?bench:[...bench,p];if(minimumFinishCost(nr,nb)>remaining-p.salary+.001)return setMessage('That pick leaves too little cap to finish all 29 roster spots.');isStarter?setRoster(nr):setBench(nb);setMessage(`${p.name} added as ${isStarter?'a starter':'required depth'}.`);};
+  const remove=(p:Player,depth:boolean)=>{if(depth){setBench(b=>b.filter(x=>x.id!==p.id));return;}const g=groupOf(p);const promote=bench.filter(x=>groupOf(x)===g).sort((a,b)=>b.ovr-a.ovr)[0];if(promote){setRoster(r=>r.map(x=>x.id===p.id?promote:x));setBench(b=>b.filter(x=>x.id!==promote.id));setMessage(`${promote.name} promoted.`);}else setRoster(r=>r.filter(x=>x.id!==p.id));};
 
-  const available = useMemo(()=>PLAYERS_DATABASE.filter(p=>{
-    if(selected.some(x=>x.id===p.id)) return false;
-    const g=groupOf(p); if(!GROUPS.includes(g)||totalCount(roster,bench,g)>=TOTALS[g]) return false;
-    if(query&&!`${p.name} ${p.team} ${p.position}`.toLowerCase().includes(query.toLowerCase())) return false;
-    return position==='ALL'||g===position||p.position===position;
-  }).sort((a,b)=>b.ovr-a.ovr).slice(0,180),[selected,roster,bench,query,position]);
+  const autoDraft=()=>{try{const pools={} as Record<Group,Player[]>;const picked={} as Record<Group,Player[]>;GROUPS.forEach(g=>{pools[g]=[];picked[g]=[];});for(const p of PLAYERS_DATABASE){const g=groupOf(p),salary=Number(p.salary);if(!GROUPS.includes(g)||!Number.isFinite(salary)||salary<0||!Number.isFinite(Number(p.ovr)))continue;pools[g].push(p);}let total=0;for(const g of GROUPS){pools[g].sort((a,b)=>a.salary-b.salary||b.ovr-a.ovr);if(pools[g].length<TOTALS[g])throw new Error(`Not enough ${label(g)} players to build a legal roster.`);picked[g]=pools[g].slice(0,TOTALS[g]);total+=picked[g].reduce((n,p)=>n+p.salary,0);}if(total>DEFAULT_SALARY_CAP)throw new Error('The current player pool cannot build 29 legal spots under the cap.');const value=(p:Player)=>smartScore(p,[]);const candidatePools={} as Record<Group,Player[]>;for(const g of GROUPS)candidatePools[g]=[...pools[g]].sort((a,b)=>value(b)-value(a)).slice(0,60);for(let round=0;round<70;round++){const chosen=new Set(GROUPS.flatMap(g=>picked[g]).map(p=>p.id));const capLeft=DEFAULT_SALARY_CAP-total;let best:{g:Group;slot:number;p:Player;delta:number;score:number}|null=null;for(const g of GROUPS){for(let slot=0;slot<picked[g].length;slot++){const old=picked[g][slot],oldValue=value(old);for(const p of candidatePools[g]){if(chosen.has(p.id))continue;const delta=p.salary-old.salary;if(delta>capLeft+.001)continue;const gain=value(p)-oldValue;if(gain<=.01)continue;const efficiency=gain/Math.max(.25,delta>0?delta:.25),score=gain*5+efficiency;if(!best||score>best.score)best={g,slot,p,delta,score};}}}if(!best)break;picked[best.g][best.slot]=best.p;total+=best.delta;}const s:Player[]=[],d:Player[]=[];for(const g of GROUPS){const gp=[...picked[g]].sort((a,b)=>b.ovr-a.ovr||a.salary-b.salary);s.push(...gp.slice(0,ROSTER_REQUIREMENTS[g]));d.push(...gp.slice(ROSTER_REQUIREMENTS[g]));}if(s.length!==STARTERS||d.length!==DEPTH)throw new Error('Auto-draft could not finish all required roster spots.');setRoster(s);setBench(d);setMessage(`Smart 29-man roster built — $${Math.max(0,DEFAULT_SALARY_CAP-total).toFixed(1)}M cap remaining.`);}catch(error){console.error('Solo auto-draft failed',error);setMessage(error instanceof Error?error.message:'Auto-draft failed. Please try again.');}};
 
-  const add = (p:Player) => {
-    const g=groupOf(p);
-    if(totalCount(roster,bench,g)>=TOTALS[g]) return setMessage(`${label(g)} is full.`);
-    if(p.salary>remaining) return setMessage('That player puts you over the cap.');
-    const isStarter=count(roster,g)<ROSTER_REQUIREMENTS[g];
-    const nr=isStarter?[...roster,p]:roster, nb=isStarter?bench:[...bench,p];
-    if(minimumFinishCost(nr,nb)>remaining-p.salary+.001) return setMessage('That pick leaves too little cap to finish all 29 roster spots.');
-    isStarter?setRoster(nr):setBench(nb); setMessage(`${p.name} added as ${isStarter?'a starter':'required depth'}.`);
-  };
+  const start=()=>{if(!valid)return setMessage(starterErrors[0]||`Still need required depth at ${depthErrors.map(label).join(', ')}.`);setWeeks([]);setInjuries([]);setPlayoffs([]);setStorylines([]);setTradeOffer(null);setStage('regular');setMessage(`Week 1 ready. Chemistry: ${chemistry.score}/99.`);};
 
-  const remove = (p:Player,depth:boolean) => {
-    if(depth){ setBench(b=>b.filter(x=>x.id!==p.id)); return; }
-    const g=groupOf(p); const promote=bench.filter(x=>groupOf(x)===g).sort((a,b)=>b.ovr-a.ovr)[0];
-    if(promote){ setRoster(r=>r.map(x=>x.id===p.id?promote:x)); setBench(b=>b.filter(x=>x.id!==promote.id)); setMessage(`${promote.name} promoted.`); }
-    else setRoster(r=>r.filter(x=>x.id!==p.id));
-  };
+  const playWeek=()=>{if(tradeOffer)return setMessage('Accept or decline the trade offer before advancing.');const week=weeks.length+1;if(week>17)return;const lineup=effectiveLineup(roster,bench,active);const myRatings=applyChemistry(ratingsWithInjuries(roster,active,bench),chemistry);const me:LeagueMember={id:'solo-user',userId:'solo-user',userName:'YOU',isCommissioner:true,status:'ready',roster:lineup,teamRatings:myRatings};const opp=makeSoloOpponent(week,settings.difficulty);const home=week%2===1;const game=home?simulateGame(week,me,opp):simulateGame(week,opp,me);const won=game.winnerId==='solo-user',nw=wins+(won?1:0),nl=losses+(won?0:1),snap=playoffSnapshot(nw,nl,week);const newInjuries=simulateInjuries(roster,week,settings.injuries,active);const playerLines=generatePlayerLines(lineup,game,home,week);const nextRecord=`${nw}-${nl}`;const story=buildStoryline(week,game,home,playerLines,newInjuries,nextRecord,chemistry.score);setWeeks(w=>[...w,{week,opponent:opp.userName,game,won,playerLines,injuries:newInjuries,playoffSeed:snap.seed,playoffOdds:snap.odds,record:nextRecord}]);setInjuries(old=>[...old.map(i=>({...i,weeks:Math.max(0,i.weeks-1)})),...newInjuries]);setStorylines(s=>[story,...s].slice(0,25));const offer=buildTradeOffer(roster,bench,week,remaining);if(offer)setTradeOffer(offer);const you=home?game.homeScore:game.awayScore,them=home?game.awayScore:game.homeScore;setMessage(`${won?'WIN':'LOSS'} ${you}-${them}.${offer?' Trade call waiting.':''}`);};
 
-  const autoDraft = () => {
-    try {
-      const pools = {} as Record<Group,Player[]>;
-      const picked = {} as Record<Group,Player[]>;
-      GROUPS.forEach(g=>{ pools[g]=[]; picked[g]=[]; });
+  const acceptTrade=()=>{if(!tradeOffer)return;const {incoming,outgoing}=tradeOffer;const inStarters=roster.some(p=>p.id===outgoing.id);if(inStarters)setRoster(r=>r.map(p=>p.id===outgoing.id?incoming:p));else setBench(b=>b.map(p=>p.id===outgoing.id?incoming:p));setInjuries(x=>x.filter(i=>i.playerId!==outgoing.id));setStorylines(s=>[{id:`trade-story-${tradeOffer.id}`,week:weeks.length,tag:'TRADE ALERT',headline:`Ball Knower acquires ${incoming.name}`,deck:`${outgoing.name} heads out in a one-for-one ${label(groupOf(incoming))} swap. Net cap change: ${tradeOffer.capDelta>=0?'+':''}$${tradeOffer.capDelta.toFixed(2)}M.`,tone:'gold'},...s]);setMessage(`TRADE ACCEPTED: ${incoming.name} is in.`);setTradeOffer(null);};
+  const declineTrade=()=>{if(!tradeOffer)return;setMessage(`Trade declined. ${tradeOffer.outgoing.name} stays.`);setTradeOffer(null);};
 
-      for (const p of PLAYERS_DATABASE) {
-        const g = groupOf(p);
-        const salary = Number(p.salary);
-        if (!GROUPS.includes(g) || !Number.isFinite(salary) || salary < 0 || !Number.isFinite(Number(p.ovr))) continue;
-        pools[g].push(p);
-      }
+  const finish=(champ:boolean,playoffWins:number,text:string)=>{const ach=achievementsForRun(wins,losses,champ,grade.score,roster);const next=updateCareer(career,wins,losses,champ,playoffWins,grade.score,ach);setCareer(next);try{localStorage.setItem(CAREER_KEY,JSON.stringify(next));localStorage.removeItem(RUN_KEY);}catch{}const top=seasonStats[0];void publishCareer(currentUser?.name||'Ball Knower GM',next,{bestRoster:roster.map(p=>({id:p.id,name:p.name,team:p.team,position:p.position,ovr:p.ovr,salary:p.salary})),lastRunSummary:{record:`${wins}-${losses}`,champion:champ,overall:ratings.overall,chemistry:chemistry.score,draftGrade:grade.letter,bkScore:grade.score,topPlayer:top?.name||null,finishedAt:new Date().toISOString()}}).catch(()=>{});setMessage(text);setStage('finished');};
+  const enterPlayoffs=()=>{const diff=totals.pf-totals.pa;if(wins<9||(wins===9&&diff<0))return finish(false,0,`Season over at ${wins}-${losses}. You missed the playoffs.`);setStage('playoffs');setMessage(`Playoff berth clinched. Projected #${weeks.at(-1)?.playoffSeed||7} seed.`);};
+  const round=playoffs.length===0?'WILD CARD':playoffs.length===1?'DIVISIONAL':playoffs.length===2?'CONFERENCE':playoffs.length===3?'SUPER BOWL':null;
+  const playRound=()=>{if(!round)return;const idx=playoffs.length,lineup=effectiveLineup(roster,bench,active),opp=makeSoloOpponent(30+idx,settings.difficulty);const me:LeagueMember={id:'solo-user',userId:'solo-user',userName:'YOU',isCommissioner:true,status:'ready',roster:lineup,teamRatings:applyChemistry(ratingsWithInjuries(roster,active,bench),chemistry)};const home=idx%2===0,game=home?simulateGame(18+idx,me,opp):simulateGame(18+idx,opp,me),you=home?game.homeScore:game.awayScore,them=home?game.awayScore:game.homeScore,won=game.winnerId==='solo-user';const next=[...playoffs,{round,opponent:opp.userName,you,them,won}];setPlayoffs(next);const newInjuries=simulateInjuries(roster,18+idx,settings.injuries,active);setInjuries(old=>[...old.map(i=>({...i,weeks:Math.max(0,i.weeks-1)})),...newInjuries]);if(!won)finish(false,next.filter(x=>x.won).length,`${round}: ${you}-${them}. Your run ends here.`);else if(round==='SUPER BOWL')finish(true,4,`WORLD CHAMPION — Super Bowl LXI, ${you}-${them}.`);else setMessage(`${round} WIN ${you}-${them}. Keep going.`);};
 
-      let total = 0;
-      for (const g of GROUPS) {
-        pools[g].sort((a,b)=>a.salary-b.salary || b.ovr-a.ovr);
-        if (pools[g].length < TOTALS[g]) throw new Error(`Not enough ${label(g)} players to build a legal roster.`);
-        picked[g] = pools[g].slice(0,TOTALS[g]);
-        total += picked[g].reduce((n,p)=>n+p.salary,0);
-      }
-      if (total > DEFAULT_SALARY_CAP) throw new Error('The current player pool cannot build 29 legal spots under the cap.');
-
-      const value = (p:Player) => smartScore(p,[]);
-      const candidatePools = {} as Record<Group,Player[]>;
-      for (const g of GROUPS) candidatePools[g]=[...pools[g]].sort((a,b)=>value(b)-value(a)).slice(0,60);
-
-      for (let round=0; round<70; round++) {
-        const chosen = new Set(GROUPS.flatMap(g=>picked[g]).map(p=>p.id));
-        const capLeft = DEFAULT_SALARY_CAP-total;
-        let best:{g:Group;slot:number;p:Player;delta:number;score:number}|null=null;
-
-        for (const g of GROUPS) {
-          for (let slot=0; slot<picked[g].length; slot++) {
-            const old = picked[g][slot];
-            const oldValue = value(old);
-            for (const p of candidatePools[g]) {
-              if (chosen.has(p.id)) continue;
-              const delta = p.salary-old.salary;
-              if (delta > capLeft+.001) continue;
-              const gain = value(p)-oldValue;
-              if (gain <= .01) continue;
-              const efficiency = gain/Math.max(.25,delta>0?delta:.25);
-              const score = gain*5+efficiency;
-              if (!best || score>best.score) best={g,slot,p,delta,score};
-            }
-          }
-        }
-
-        if (!best) break;
-        picked[best.g][best.slot]=best.p;
-        total += best.delta;
-      }
-
-      const s:Player[]=[];
-      const d:Player[]=[];
-      for (const g of GROUPS) {
-        const groupPicks=[...picked[g]].sort((a,b)=>b.ovr-a.ovr || a.salary-b.salary);
-        s.push(...groupPicks.slice(0,ROSTER_REQUIREMENTS[g]));
-        d.push(...groupPicks.slice(ROSTER_REQUIREMENTS[g]));
-      }
-
-      if (s.length!==STARTERS || d.length!==DEPTH) throw new Error('Auto-draft could not finish all required roster spots.');
-      setRoster(s);
-      setBench(d);
-      setMessage(`Smart 29-man roster built in one pass — $${Math.max(0,DEFAULT_SALARY_CAP-total).toFixed(1)}M cap remaining.`);
-    } catch (error) {
-      console.error('Solo auto-draft failed',error);
-      setMessage(error instanceof Error ? error.message : 'Auto-draft failed. Please try again.');
-    }
-  };
-
-  const start = () => {
-    if(!valid) return setMessage(starterErrors[0]||`Still need required depth at ${depthErrors.map(label).join(', ')}.`);
-    setWeeks([]); setInjuries([]); setPlayoffs([]); setStage('regular'); setMessage('Week 1 ready. Backups automatically step in when starters get hurt.');
-  };
-
-  const playWeek = () => {
-    const week=weeks.length+1; if(week>17) return;
-    const lineup=effectiveLineup(roster,bench,active); const myRatings=ratingsWithInjuries(roster,active,bench);
-    const me:LeagueMember={id:'solo-user',userId:'solo-user',userName:'YOU',isCommissioner:true,status:'ready',roster:lineup,teamRatings:myRatings};
-    const opp=makeSoloOpponent(week,settings.difficulty); const home=week%2===1; const game=home?simulateGame(week,me,opp):simulateGame(week,opp,me);
-    const won=game.winnerId==='solo-user', nw=wins+(won?1:0), nl=losses+(won?0:1), snap=playoffSnapshot(nw,nl,week);
-    const newInjuries=simulateInjuries(roster,week,settings.injuries,active); const playerLines=generatePlayerLines(lineup,game,home,week);
-    setWeeks(w=>[...w,{week,opponent:opp.userName,game,won,playerLines,injuries:newInjuries,playoffSeed:snap.seed,playoffOdds:snap.odds,record:`${nw}-${nl}`}]);
-    setInjuries(old=>[...old.map(i=>({...i,weeks:Math.max(0,i.weeks-1)})),...newInjuries]);
-    const you=home?game.homeScore:game.awayScore, them=home?game.awayScore:game.homeScore;
-    setMessage(`${won?'WIN':'LOSS'} ${you}-${them}.${newInjuries.length?` ${newInjuries[0].playerName} injured — next man up.`:''}`);
-  };
-
-  const finish = (champ:boolean,playoffWins:number,text:string) => {
-    const ach=achievementsForRun(wins,losses,champ,grade.score,roster); const next=updateCareer(career,wins,losses,champ,playoffWins,grade.score,ach);
-    setCareer(next); try{localStorage.setItem(CAREER_KEY,JSON.stringify(next));localStorage.removeItem(RUN_KEY);}catch{}
-    void publishCareer(currentUser?.name||'Ball Knower GM',next).catch(()=>{}); setMessage(text); setStage('finished');
-  };
-
-  const enterPlayoffs = () => {
-    const diff=totals.pf-totals.pa; if(wins<9||(wins===9&&diff<0)) return finish(false,0,`Season over at ${wins}-${losses}. You missed the playoffs.`);
-    setStage('playoffs'); setMessage(`Playoff berth clinched. Projected #${weeks.at(-1)?.playoffSeed||7} seed.`);
-  };
-
-  const round = playoffs.length===0?'WILD CARD':playoffs.length===1?'DIVISIONAL':playoffs.length===2?'CONFERENCE':playoffs.length===3?'SUPER BOWL':null;
-  const playRound = () => {
-    if(!round) return; const idx=playoffs.length; const lineup=effectiveLineup(roster,bench,active); const opp=makeSoloOpponent(30+idx,settings.difficulty);
-    const me:LeagueMember={id:'solo-user',userId:'solo-user',userName:'YOU',isCommissioner:true,status:'ready',roster:lineup,teamRatings:ratingsWithInjuries(roster,active,bench)};
-    const home=idx%2===0, game=home?simulateGame(18+idx,me,opp):simulateGame(18+idx,opp,me); const you=home?game.homeScore:game.awayScore, them=home?game.awayScore:game.homeScore, won=game.winnerId==='solo-user';
-    const next=[...playoffs,{round,opponent:opp.userName,you,them,won}]; setPlayoffs(next);
-    const newInjuries=simulateInjuries(roster,18+idx,settings.injuries,active); setInjuries(old=>[...old.map(i=>({...i,weeks:Math.max(0,i.weeks-1)})),...newInjuries]);
-    if(!won) finish(false,next.filter(x=>x.won).length,`${round}: ${you}-${them}. Your run ends here.`);
-    else if(round==='SUPER BOWL') finish(true,4,`WORLD CHAMPION — Super Bowl LXI, ${you}-${them}.`);
-    else setMessage(`${round} WIN ${you}-${them}. Keep going.`);
-  };
-
-  const reset = () => { setStage('draft');setRoster([]);setBench([]);setWeeks([]);setInjuries([]);setPlayoffs([]);setMessage('');try{localStorage.removeItem(RUN_KEY)}catch{} };
+  const reset=()=>{setStage('draft');setRoster([]);setBench([]);setWeeks([]);setInjuries([]);setPlayoffs([]);setStorylines([]);setTradeOffer(null);setMessage('');try{localStorage.removeItem(RUN_KEY);}catch{}};
   const champion=playoffs.some(x=>x.round==='SUPER BOWL'&&x.won)||message.includes('WORLD CHAMPION');
-  const share=async()=>{ const text=`BALL KNOWER SOLO\n${wins}-${losses} • ${ratings.overall} OVR • Depth ${depthOvr} • ${grade.letter} draft\n${champion?'SUPER BOWL CHAMPION 🏆':''}`; try{navigator.share?await navigator.share({title:'Ball Knower',text}):await navigator.clipboard.writeText(text)}catch{} };
+  const share=async()=>{const text=`BALL KNOWER\n${wins}-${losses} • ${ratings.overall} OVR • ${chemistry.score} Chemistry • ${grade.letter} Draft • BK ${grade.score}\n${champion?'SUPER BOWL CHAMPION 🏆':''}`;const svg=buildShareCardSvg({name:currentUser?.name||'Ball Knower GM',record:`${wins}-${losses}`,champion,ovr:ratings.overall,chemistry:chemistry.score,bkScore:grade.score,capLeft:remaining,topPlayer:seasonStats[0]?.name});try{const blob=new Blob([svg],{type:'image/svg+xml'});const file=new File([blob],'ball-knower-season.svg',{type:'image/svg+xml'});if(navigator.share&&(navigator as any).canShare?.({files:[file]})){await navigator.share({title:'Ball Knower',text,files:[file]});return;}if(navigator.share){await navigator.share({title:'Ball Knower',text});return;}await navigator.clipboard.writeText(text);}catch{try{await navigator.clipboard.writeText(text);}catch{}}};
 
   return <div className="min-h-screen bg-[#090909] text-white px-4 sm:px-8 py-7"><div className="mx-auto max-w-7xl">
-    <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-7">
-      <div><div className="text-[#D4AF37] text-xs font-black tracking-[.3em]">SOLO FRANCHISE</div><h2 className="text-4xl sm:text-6xl font-black leading-none mt-2">BUILD DEPTH. <span className="text-[#D4AF37]">WIN IT ALL.</span></h2><p className="text-zinc-400 mt-3">20 starters + 9 required backups. Survive 17 games, injuries and the playoffs.</p></div>
-      <div className="flex gap-2"><button onClick={share} className="border border-white/10 px-4 py-2 bg-[#151515]"><Share2 className="inline mr-2" size={16}/>Share</button><button onClick={reset} className="border border-white/10 px-4 py-2 bg-[#151515]"><RotateCcw className="inline mr-2" size={16}/>New Run</button></div>
-    </header>
+    <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 mb-7"><div><div className="text-[#D4AF37] text-xs font-black tracking-[.3em]">SOLO FRANCHISE</div><h2 className="text-4xl sm:text-6xl font-black leading-none mt-2">BUILD DEPTH. <span className="text-[#D4AF37]">WIN IT ALL.</span></h2><p className="text-zinc-400 mt-3">Draft 29. Build chemistry. Handle injuries and trades. Survive 17 weeks. Chase a ring.</p></div><div className="flex gap-2"><button onClick={share} className="border border-white/10 px-4 py-2 bg-[#151515]"><Share2 className="inline mr-2" size={16}/>Share</button><button onClick={reset} className="border border-white/10 px-4 py-2 bg-[#151515]"><RotateCcw className="inline mr-2" size={16}/>New Run</button></div></header>
     {message&&<div className="mb-5 border border-[#D4AF37]/30 bg-[#D4AF37]/10 text-[#E7C95F] px-4 py-3 font-bold">{message}</div>}
-    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6"><Stat label="Career Runs" value={`${career.runs}`}/><Stat label="Titles" value={`${career.championships}`}/><Stat label="Career W-L" value={`${career.regularWins}-${career.regularLosses}`}/><Stat label="Playoff Wins" value={`${career.playoffWins}`}/><Stat label="Best Record" value={career.bestRecord}/><Stat label="Best BK" value={`${career.bestScore}`}/></div>
+    <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6"><Stat label="Career Runs" value={`${career.runs}`}/><Stat label="Titles" value={`${career.championships}`}/><Stat label="Career W-L" value={`${career.regularWins}-${career.regularLosses}`}/><Stat label="Playoff Wins" value={`${career.playoffWins}`}/><Stat label="Best Record" value={career.bestRecord}/><Stat label="Best BK" value={`${career.bestScore}`}/><Stat label="BK Rating" value={`${careerRating}`}/></div>
 
     {stage==='draft'&&<>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5"><Stat label="Cap Left" value={`$${remaining.toFixed(1)}M`}/><Stat label="Roster" value={`${selected.length}/${SOLO_SIZE}`}/><Stat label="Team OVR" value={`${ratings.overall}`}/><Stat label="Depth OVR" value={depthOvr?`${depthOvr}`:'—'}/><Stat label="Draft" value={`${grade.letter} • ${grade.score}`}/></div>
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5"><Stat label="Cap Left" value={`$${remaining.toFixed(1)}M`}/><Stat label="Roster" value={`${selected.length}/${SOLO_SIZE}`}/><Stat label="Team OVR" value={`${ratings.overall}`}/><Stat label="Depth OVR" value={depthOvr?`${depthOvr}`:'—'}/><Stat label="Chemistry" value={`${chemistry.score}`}/><Stat label="Draft" value={`${grade.letter} • ${grade.score}`}/></div>
+      <ChemistryPanel chemistry={chemistry}/>
       <div className="grid sm:grid-cols-2 gap-4 bg-[#111] border border-white/10 p-4 mb-5"><Select label="DIFFICULTY" value={settings.difficulty} onChange={v=>setSettings({...settings,difficulty:v as any})} options={[["rookie","Rookie"],["pro","Pro"],["all_pro","All-Pro"],["all_madden","All-Madden"]]}/><Select label="INJURIES" value={settings.injuries} onChange={v=>setSettings({...settings,injuries:v as any})} options={[["off","Off"],["normal","Normal"],["chaos","Chaos"]]}/></div>
       <div className="bg-[#101010] border border-[#D4AF37]/25 p-4 mb-5"><div className="text-[10px] text-[#D4AF37] font-black tracking-[.2em] mb-3">29-MAN ROSTER REQUIREMENTS</div><div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-11 gap-2">{GROUPS.map(g=>{const n=totalCount(roster,bench,g),need=TOTALS[g];return <div key={g} className={`border p-2 text-center ${n===need?'border-green-500/30 bg-green-500/5':'border-white/10'}`}><div className="text-[10px] text-zinc-500 font-black">{label(g)}</div><div className={n===need?'text-green-400 font-black':'font-black'}>{n}/{need}</div></div>})}</div><div className="text-xs text-zinc-500 mt-3">2 QB • 2 RB • 3 WR • 2 TE • 5 OL • 4 DL/EDGE • 3 LB • 3 CB • 3 S • K • P</div></div>
       <div className="flex flex-wrap gap-2 mb-4">{['ALL',...GROUPS].map(g=><button key={g} onClick={()=>setPosition(g)} className={`px-3 py-2 text-xs font-black border ${position===g?'border-[#D4AF37] text-[#D4AF37]':'border-white/10 text-zinc-400'}`}>{label(g)}</button>)}</div>
-      <div className="grid lg:grid-cols-[1.45fr_.85fr] gap-6"><div><div className="flex flex-col sm:flex-row gap-2 mb-3"><div className="flex-1 flex items-center gap-2 bg-[#151515] border border-white/10 px-3"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search players..." className="w-full bg-transparent py-3 outline-none"/></div><button onClick={autoDraft} className="px-5 py-3 bg-[#D4AF37] text-black font-black">SMART AUTO-DRAFT 29</button></div><div className="space-y-2 max-h-[720px] overflow-y-auto">{available.map(p=>{const g=groupOf(p), starter=count(roster,g)<ROSTER_REQUIREMENTS[g]; return <div key={p.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center bg-[#121212] border border-white/5 p-3"><div><b>{p.name}</b><div className="text-xs text-zinc-500">{p.team} • {p.position} • <span className={starter?'text-white':'text-[#D4AF37]'}>{starter?'STARTER':'DEPTH'}</span></div></div><b>{p.ovr}</b><span className="text-[#D4AF37] text-sm">${p.salary.toFixed(2)}M</span><button onClick={()=>add(p)} className="p-2 border border-[#D4AF37]/40 text-[#D4AF37]"><Plus size={16}/></button></div>})}</div></div>
-        <aside className="bg-[#111] border border-white/10 p-4 h-fit lg:sticky lg:top-24"><h3 className="text-xl font-black">DEPTH CHART <span className="text-zinc-500 text-sm">{selected.length}/{SOLO_SIZE}</span></h3><p className="text-xs text-zinc-500 mt-1 mb-4">Backups are mandatory and automatically replace injured starters.</p><Roster title="STARTERS" players={roster} target={STARTERS} onRemove={p=>remove(p,false)}/><div className="border-t border-white/10 mt-4 pt-4"><Roster title="BACKUPS" players={bench} target={DEPTH} onRemove={p=>remove(p,true)}/></div><button disabled={!valid} onClick={start} className="mt-5 w-full py-4 bg-[#D4AF37] disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black"><Play className="inline mr-2" size={17}/>START SEASON</button></aside>
-      </div>
+      <div className="grid lg:grid-cols-[1.45fr_.85fr] gap-6"><div><div className="flex flex-col sm:flex-row gap-2 mb-3"><div className="flex-1 flex items-center gap-2 bg-[#151515] border border-white/10 px-3"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search players..." className="w-full bg-transparent py-3 outline-none"/></div><button onClick={autoDraft} className="px-5 py-3 bg-[#D4AF37] text-black font-black">SMART AUTO-DRAFT 29</button></div><div className="space-y-2 max-h-[720px] overflow-y-auto">{available.map(p=>{const g=groupOf(p),starter=count(roster,g)<ROSTER_REQUIREMENTS[g];return <button key={p.id} onClick={()=>add(p)} className="w-full text-left grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center bg-[#121212] border border-white/5 p-3 hover:border-[#D4AF37]/30"><div><b>{p.name}</b><div className="text-xs text-zinc-500">{p.team} • {p.position} • <span className={starter?'text-white':'text-[#D4AF37]'}>{starter?'STARTER':'DEPTH'}</span></div></div><b>{p.ovr}</b><span className="text-[#D4AF37] text-sm">${p.salary.toFixed(2)}M</span><span className="p-2 border border-[#D4AF37]/40 text-[#D4AF37]"><Plus size={16}/></span></button>})}</div></div><aside className="bg-[#111] border border-white/10 p-4 h-fit lg:sticky lg:top-24"><h3 className="text-xl font-black">DEPTH CHART <span className="text-zinc-500 text-sm">{selected.length}/{SOLO_SIZE}</span></h3><p className="text-xs text-zinc-500 mt-1 mb-4">Backups automatically replace injured starters.</p><Roster title="STARTERS" players={roster} target={STARTERS} onRemove={p=>remove(p,false)}/><div className="border-t border-white/10 mt-4 pt-4"><Roster title="BACKUPS" players={bench} target={DEPTH} onRemove={p=>remove(p,true)}/></div><button disabled={!valid} onClick={start} className="mt-5 w-full py-4 bg-[#D4AF37] disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-black"><Play className="inline mr-2" size={17}/>START SEASON</button></aside></div>
     </>}
 
-    {stage==='regular'&&<div className="grid lg:grid-cols-[1.4fr_.7fr] gap-6"><main><div className="grid grid-cols-4 gap-2 mb-4"><Stat label="Record" value={`${wins}-${losses}`}/><Stat label="Week" value={`${weeks.length}/17`}/><Stat label="Seed" value={`#${weeks.at(-1)?.playoffSeed||'—'}`}/><Stat label="Odds" value={`${weeks.at(-1)?.playoffOdds||50}%`}/></div>{weeks.length<17?<GameDay week={weeks.length+1} opponent={makeSoloOpponent(weeks.length+1,settings.difficulty).userName} ratings={ratingsWithInjuries(roster,active,bench)} injuries={active} depth={bench} onPlay={playWeek}/>:<button onClick={enterPlayoffs} className="w-full py-5 bg-[#D4AF37] text-black font-black text-xl">FINISH REGULAR SEASON</button>}<div className="mt-6"><h3 className="font-black mb-3">GAME LOG</h3><WeekLog weeks={weeks}/></div></main><aside className="space-y-5"><Panel title="INJURY REPORT" icon={<ShieldAlert size={18}/>}>{active.length?active.map(i=>{const starter=roster.find(p=>p.id===i.playerId);const replacement=starter?bench.filter(p=>groupOf(p)===groupOf(starter)).sort((a,b)=>b.ovr-a.ovr)[0]:null;return <div key={i.playerId} className="py-2 border-b border-white/5"><b>{i.playerName}</b><div className="text-xs text-zinc-500">{i.severity} • {i.weeks} game(s) left</div>{replacement&&<div className="text-xs text-[#D4AF37]">Next up: {replacement.name} ({replacement.ovr})</div>}</div>}):<p className="text-zinc-500 text-sm">Healthy roster.</p>}</Panel><Panel title="TEAM LEADERS" icon={<Activity size={18}/>}>{leaders.length?leaders.map((l,i)=><div key={l.name} className="flex justify-between py-2 border-b border-white/5"><span>{i+1}. {l.name}</span><b>{l.score.toFixed(1)}</b></div>):<p className="text-zinc-500 text-sm">Stats start after Week 1.</p>}</Panel></aside></div>}
+    {stage==='regular'&&<div className="space-y-6">
+      {latestStory&&<StoryCard story={latestStory}/>} {tradeOffer&&<TradeCard offer={tradeOffer} onAccept={acceptTrade} onDecline={declineTrade}/>} 
+      <div className="grid lg:grid-cols-[1.35fr_.65fr] gap-6"><main><div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4"><Stat label="Record" value={`${wins}-${losses}`}/><Stat label="Week" value={`${weeks.length}/17`}/><Stat label="Seed" value={`#${weeks.at(-1)?.playoffSeed||'—'}`}/><Stat label="Odds" value={`${weeks.at(-1)?.playoffOdds||50}%`}/><Stat label="OVR" value={`${ratings.overall}`}/><Stat label="Chem" value={`${chemistry.score}`}/></div>{weeks.length<17?<GameDay week={weeks.length+1} opponent={makeSoloOpponent(weeks.length+1,settings.difficulty).userName} ratings={applyChemistry(ratingsWithInjuries(roster,active,bench),chemistry)} injuries={active} depth={bench} onPlay={playWeek}/>:<button onClick={enterPlayoffs} className="w-full py-5 bg-[#D4AF37] text-black font-black text-xl">FINISH REGULAR SEASON</button>}<div className="mt-6"><h3 className="font-black mb-3">GAME LOG</h3><WeekLog weeks={weeks}/></div></main><aside className="space-y-5"><Panel title="INJURY REPORT" icon={<ShieldAlert size={18}/>}>{active.length?active.map(i=>{const starter=roster.find(p=>p.id===i.playerId);const replacement=starter?bench.filter(p=>groupOf(p)===groupOf(starter)).sort((a,b)=>b.ovr-a.ovr)[0]:null;return <div key={i.playerId} className="py-2 border-b border-white/5"><b>{i.playerName}</b><div className="text-xs text-zinc-500">{i.severity} • {i.weeks} game(s) left</div>{replacement&&<div className="text-xs text-[#D4AF37]">Next up: {replacement.name} ({replacement.ovr})</div>}</div>}):<p className="text-zinc-500 text-sm">Healthy roster.</p>}</Panel><ChemistryPanel chemistry={chemistry} compact/></aside></div>
+      <div className="grid lg:grid-cols-2 gap-6"><Panel title="LEAGUE LEADERS" icon={<BarChart3 size={18}/>}><div className="space-y-1">{leagueLeaders.map(x=><div key={x.category} className="grid grid-cols-[90px_1fr_auto] gap-2 py-2 border-b border-white/5"><span className="text-[10px] font-black text-zinc-500">{x.category}</span><span className={x.isUser?'text-[#D4AF37] font-black':''}>{x.name} <small className="text-zinc-600">{x.team}</small></span><b>{x.value}</b></div>)}</div></Panel><Panel title="MVP RACE" icon={<TrendingUp size={18}/>}><div className="space-y-1">{mvpRace.map((x,i)=><div key={`${x.name}-${i}`} className={`flex items-center justify-between py-2 border-b border-white/5 ${x.isUser?'text-[#D4AF37]':''}`}><span><b>#{i+1} {x.name}</b> <small className="text-zinc-600">{x.position} • {x.team}</small></span><b>{x.score.toFixed(1)}</b></div>)}</div></Panel></div>
+      <Panel title="YOUR SEASON STATS" icon={<Activity size={18}/>}><SeasonStats rows={seasonStats}/></Panel>
+      {storylines.length>1&&<Panel title="SEASON STORYLINES" icon={<Flame size={18}/>}><div className="grid md:grid-cols-2 gap-2">{storylines.slice(1,7).map(s=><StoryMini key={s.id} story={s}/>)}</div></Panel>}
+    </div>}
 
-    {stage==='playoffs'&&<div className="max-w-4xl mx-auto"><div className="text-center mb-7"><Trophy className="mx-auto text-[#D4AF37]" size={60}/><div className="text-[#D4AF37] text-xs font-black tracking-[.3em] mt-3">THE GAUNTLET</div><h3 className="text-5xl font-black">PLAYOFFS</h3></div><div className="grid md:grid-cols-4 gap-3">{['WILD CARD','DIVISIONAL','CONFERENCE','SUPER BOWL'].map((r,i)=>{const x=playoffs[i];return <div key={r} className={`p-4 border ${round===r?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/10 bg-[#111]'}`}><div className="text-[10px] text-[#D4AF37] font-black">{r}</div>{x?<><b>{x.won?'WIN':'LOSS'} {x.you}-{x.them}</b><div className="text-xs text-zinc-500">{x.opponent}</div></>:<div className="text-zinc-600 mt-2">TBD</div>}</div>})}</div>{active.length>0&&<div className="mt-4 border border-red-500/20 p-4 text-red-300 text-sm">Injured: {active.map(i=>i.playerName).join(', ')}. Backups are in.</div>}{round&&<button onClick={playRound} className="mt-6 w-full py-5 bg-[#D4AF37] text-black font-black text-xl">PLAY {round}</button>}</div>}
+    {stage==='playoffs'&&<div className="max-w-5xl mx-auto"><div className="text-center mb-7"><Trophy className="mx-auto text-[#D4AF37]" size={60}/><div className="text-[#D4AF37] text-xs font-black tracking-[.3em] mt-3">THE GAUNTLET</div><h3 className="text-5xl font-black">PLAYOFFS</h3><p className="text-zinc-500 mt-2">{ratings.overall} OVR • {chemistry.score} Chemistry</p></div><div className="grid md:grid-cols-4 gap-3">{['WILD CARD','DIVISIONAL','CONFERENCE','SUPER BOWL'].map((r,i)=>{const x=playoffs[i];return <div key={r} className={`p-4 border ${round===r?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/10 bg-[#111]'}`}><div className="text-[10px] text-[#D4AF37] font-black">{r}</div>{x?<><b>{x.won?'WIN':'LOSS'} {x.you}-{x.them}</b><div className="text-xs text-zinc-500">{x.opponent}</div></>:<div className="text-zinc-600 mt-2">TBD</div>}</div>})}</div>{active.length>0&&<div className="mt-4 border border-red-500/20 p-4 text-red-300 text-sm">Injured: {active.map(i=>i.playerName).join(', ')}. Backups are in.</div>}{round&&<button onClick={playRound} className="mt-6 w-full py-5 bg-[#D4AF37] text-black font-black text-xl">PLAY {round}</button>}<div className="grid lg:grid-cols-2 gap-6 mt-6"><Panel title="MVP RACE" icon={<TrendingUp size={18}/>}><div className="space-y-1">{mvpRace.map((x,i)=><div key={`${x.name}-${i}`} className="flex justify-between py-2 border-b border-white/5"><span>#{i+1} {x.name}</span><b>{x.score.toFixed(1)}</b></div>)}</div></Panel><Panel title="LEAGUE LEADERS" icon={<BarChart3 size={18}/>}><div>{leagueLeaders.map(x=><div key={x.category} className="flex justify-between py-2 border-b border-white/5"><span>{x.category} • {x.name}</span><b>{x.value}</b></div>)}</div></Panel></div></div>}
 
-    {stage==='finished'&&<div className="max-w-6xl mx-auto"><div className={`text-center border p-8 ${champion?'border-[#D4AF37]/60 bg-[#D4AF37]/5':'border-white/10 bg-[#111]'}`}><Crown className={champion?'mx-auto text-[#D4AF37]':'mx-auto text-zinc-500'} size={70}/><div className="text-[#D4AF37] text-xs font-black tracking-[.3em] mt-3">SEASON WRAP-UP</div><h3 className="text-4xl sm:text-6xl font-black">{champion?'SUPER BOWL CHAMPION':'RUN COMPLETE'}</h3><p className="text-zinc-300 mt-3">{message}</p><div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-7"><Stat label="Record" value={`${wins}-${losses}`}/><Stat label="Points" value={`${totals.pf}-${totals.pa}`}/><Stat label="Team OVR" value={`${ratings.overall}`}/><Stat label="Depth OVR" value={`${depthOvr}`}/><Stat label="Draft" value={grade.letter}/><Stat label="BK Score" value={`${grade.score}`}/></div></div><div className="grid lg:grid-cols-3 gap-6 mt-6"><div className="lg:col-span-2"><Panel title="SEASON AWARDS" icon={<Award size={18}/>}>{awards.map(a=><div key={a.award} className="bg-[#181818] p-4 mb-2"><div className="text-[10px] text-[#D4AF37] font-black">{a.award}</div><b>{a.winner}</b></div>)}</Panel></div><Panel title="ACHIEVEMENTS" icon={<Trophy size={18}/>}>{achievementsForRun(wins,losses,champion,grade.score,roster).map(a=><div key={a} className="py-2 border-b border-white/5">🏆 {a}</div>)}</Panel></div><div className="grid lg:grid-cols-[1.35fr_.65fr] gap-6 mt-6"><Panel title="FULL GAME LOG" icon={<Activity size={18}/>}><WeekLog weeks={weeks}/>{playoffs.map(x=><div key={x.round} className="flex justify-between py-2 border-b border-white/5"><span>{x.won?'W':'L'} • {x.round} vs {x.opponent}</span><b>{x.you}-{x.them}</b></div>)}</Panel><div className="space-y-6"><Panel title="INJURY HISTORY" icon={<ShieldAlert size={18}/>}>{injuryHistory.length?injuryHistory.map(i=><div key={`${i.playerId}-${i.week}`} className="py-2 border-b border-white/5"><b>{i.playerName}</b><div className="text-xs text-zinc-500">Week {i.week} • {i.severity} • {i.weeks} game(s)</div></div>):<p className="text-zinc-500 text-sm">No injuries.</p>}</Panel><Panel title="TOP PERFORMERS" icon={<Activity size={18}/>}>{leaders.map((l,i)=><div key={l.name} className="flex justify-between py-2"><span>{i+1}. {l.name}</span><b>{l.score.toFixed(1)}</b></div>)}</Panel></div></div><div className="grid sm:grid-cols-2 gap-3 mt-6"><button onClick={share} className="py-4 border border-[#D4AF37] text-[#D4AF37] font-black"><Share2 className="inline mr-2"/>SHARE</button><button onClick={reset} className="py-4 bg-[#D4AF37] text-black font-black"><RotateCcw className="inline mr-2"/>RUN IT BACK</button></div></div>}
+    {stage==='finished'&&<div className="max-w-6xl mx-auto"><div className={`text-center border p-8 ${champion?'border-[#D4AF37]/60 bg-[#D4AF37]/5':'border-white/10 bg-[#111]'}`}><Crown className={champion?'mx-auto text-[#D4AF37]':'mx-auto text-zinc-500'} size={70}/><div className="text-[#D4AF37] text-xs font-black tracking-[.3em] mt-3">SEASON WRAP-UP</div><h3 className="text-4xl sm:text-6xl font-black">{champion?'SUPER BOWL CHAMPION':'RUN COMPLETE'}</h3><p className="text-zinc-300 mt-3">{message}</p><div className="grid grid-cols-2 md:grid-cols-7 gap-3 mt-7"><Stat label="Record" value={`${wins}-${losses}`}/><Stat label="Points" value={`${totals.pf}-${totals.pa}`}/><Stat label="Team OVR" value={`${ratings.overall}`}/><Stat label="Chemistry" value={`${chemistry.score}`}/><Stat label="Depth" value={`${depthOvr}`}/><Stat label="Draft" value={grade.letter}/><Stat label="BK Score" value={`${grade.score}`}/></div></div>
+      <div className="grid lg:grid-cols-3 gap-6 mt-6"><div className="lg:col-span-2"><Panel title="SEASON AWARDS" icon={<Award size={18}/>}>{mvpRace[0]&&<div className="bg-[#D4AF37]/10 border border-[#D4AF37]/30 p-4 mb-2"><div className="text-[10px] text-[#D4AF37] font-black">SIMULATED LEAGUE MVP</div><b>{mvpRace[0].name}</b> <small className="text-zinc-500">{mvpRace[0].team}</small></div>}{awards.map(a=><div key={a.award} className="bg-[#181818] p-4 mb-2"><div className="text-[10px] text-[#D4AF37] font-black">{a.award}</div><b>{a.winner}</b></div>)}</Panel></div><Panel title="ACHIEVEMENTS" icon={<Trophy size={18}/>}>{achievementsForRun(wins,losses,champion,grade.score,roster).map(a=><div key={a} className="py-2 border-b border-white/5">🏆 {a}</div>)}</Panel></div>
+      <div className="grid lg:grid-cols-2 gap-6 mt-6"><Panel title="FINAL LEAGUE LEADERS" icon={<BarChart3 size={18}/>}><div>{leagueLeaders.map(x=><div key={x.category} className="flex justify-between py-2 border-b border-white/5"><span>{x.category} • {x.name}</span><b>{x.value}</b></div>)}</div></Panel><Panel title="CHEMISTRY REPORT" icon={<Sparkles size={18}/>}><ChemistryPanel chemistry={chemistry} compact/></Panel></div>
+      <div className="grid lg:grid-cols-[1.35fr_.65fr] gap-6 mt-6"><Panel title="FULL GAME LOG" icon={<Activity size={18}/>}><WeekLog weeks={weeks}/>{playoffs.map(x=><div key={x.round} className="flex justify-between py-2 border-b border-white/5"><span>{x.won?'W':'L'} • {x.round} vs {x.opponent}</span><b>{x.you}-{x.them}</b></div>)}</Panel><div className="space-y-6"><Panel title="INJURY HISTORY" icon={<ShieldAlert size={18}/>}>{injuryHistory.length?injuryHistory.map(i=><div key={`${i.playerId}-${i.week}`} className="py-2 border-b border-white/5"><b>{i.playerName}</b><div className="text-xs text-zinc-500">Week {i.week} • {i.severity} • {i.weeks} game(s)</div></div>):<p className="text-zinc-500 text-sm">No injuries.</p>}</Panel><Panel title="TOP PERFORMERS" icon={<Activity size={18}/>}>{seasonStats.slice(0,5).map((l,i)=><div key={l.playerId} className="flex justify-between py-2"><span>{i+1}. {l.name}</span><b>{l.fantasy.toFixed(1)}</b></div>)}</Panel></div></div>
+      <div className="mt-6"><Panel title="FULL SEASON STATS" icon={<BarChart3 size={18}/>}><SeasonStats rows={seasonStats}/></Panel></div>
+      <div className="mt-6"><Panel title="YOUR SEASON IN HEADLINES" icon={<Flame size={18}/>}><div className="grid md:grid-cols-2 gap-2">{storylines.map(s=><StoryMini key={s.id} story={s}/>)}</div></Panel></div>
+      <div className="grid sm:grid-cols-2 gap-3 mt-6"><button onClick={share} className="py-4 border border-[#D4AF37] text-[#D4AF37] font-black"><Share2 className="inline mr-2"/>SHARE SEASON CARD</button><button onClick={reset} className="py-4 bg-[#D4AF37] text-black font-black"><RotateCcw className="inline mr-2"/>RUN IT BACK</button></div>
+    </div>}
   </div></div>;
 };
 
@@ -297,4 +133,9 @@ const Panel=({title,icon,children}:{title:string,icon:React.ReactNode,children:R
 const Select=({label:lbl,value,onChange,options}:{label:string,value:string,onChange:(v:string)=>void,options:string[][]})=><label className="text-xs font-black">{lbl}<select value={value} onChange={e=>onChange(e.target.value)} className="mt-2 block w-full bg-[#181818] border border-white/10 p-3">{options.map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>;
 const Roster=({title,players,target,onRemove}:{title:string,players:Player[],target:number,onRemove:(p:Player)=>void})=><div><div className="flex justify-between text-[10px] font-black text-[#D4AF37] mb-2"><span>{title}</span><span>{players.length}/{target}</span></div><div className="space-y-1 max-h-[250px] overflow-y-auto">{players.map(p=><div key={p.id} className="flex justify-between bg-[#181818] px-3 py-2"><span className="truncate"><b>{p.position}</b> {p.name} <small className="text-zinc-600">{p.ovr}</small></span><button onClick={()=>onRemove(p)}><Trash2 size={15}/></button></div>)}</div></div>;
 const GameDay=({week,opponent,ratings,injuries,depth,onPlay}:{week:number,opponent:string,ratings:any,injuries:InjuryEvent[],depth:Player[],onPlay:()=>void})=><div className="bg-[#111] border border-[#D4AF37]/30 p-6 text-center"><div className="text-[#D4AF37] text-xs font-black tracking-[.25em]">WEEK {week}</div><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mt-5"><div><div className="text-3xl font-black">YOU</div><div className="text-zinc-500">{ratings.overall} OVR</div></div><b className="text-zinc-600">VS</b><div><div className="text-xl font-black">{opponent}</div><div className="text-zinc-500">CPU</div></div></div><p className="text-sm text-zinc-400 mt-5">{injuries.length?`${injuries.length} starter(s) out — your ${depth.length}-man backup unit is active.`:'Healthy entering kickoff.'}</p><button onClick={onPlay} className="mt-5 w-full py-4 bg-[#D4AF37] text-black font-black"><Play className="inline mr-2"/>SIMULATE WEEK {week}</button></div>;
-const WeekLog=({weeks}:{weeks:SoloWeek[]})=><div className="space-y-2">{[...weeks].reverse().map(w=>{const home=w.game.homeMemberId==='solo-user',you=home?w.game.homeScore:w.game.awayScore,them=home?w.game.awayScore:w.game.homeScore;return <details key={w.week} className="bg-[#121212] border border-white/10 p-4"><summary className="cursor-pointer flex justify-between gap-3"><span><b className={w.won?'text-green-400':'text-red-400'}>{w.won?'W':'L'}</b> • Week {w.week} vs {w.opponent}</span><b>{you}-{them}</b></summary>{w.injuries?.length>0&&<div className="text-xs text-red-300 mt-2">Injury: {w.injuries.map(i=>i.playerName).join(', ')}</div>}<div className="grid sm:grid-cols-2 gap-2 mt-3">{(w.playerLines||[]).slice(0,10).map(l=><div key={`${w.week}-${l.playerId}`} className="bg-[#181818] p-2 text-xs"><b>{l.name}</b> <span className="text-zinc-500">{l.position}</span><div className="text-zinc-300">{l.passYds!=null&&`${l.passYds} PASS • ${l.passTD} TD`} {l.rushYds!=null&&`${l.rushYds} RUSH`} {l.recYds!=null&&`${l.receptions} REC • ${l.recYds} YDS`} {l.sacks!=null&&`${l.tackles} TKL • ${l.sacks} SACK • ${l.picks} INT`} {l.fgMade!=null&&`${l.fgMade}/${l.fgAtt} FG`}</div></div>)}</div></details>})}</div>;
+const WeekLog=({weeks}:{weeks:SoloWeek[]})=><div className="space-y-2">{[...weeks].reverse().map(w=>{const home=w.game.homeMemberId==='solo-user',you=home?w.game.homeScore:w.game.awayScore,them=home?w.game.awayScore:w.game.homeScore;return <details key={w.week} className="bg-[#121212] border border-white/10 p-4"><summary className="cursor-pointer flex justify-between gap-3"><span><b className={w.won?'text-green-400':'text-red-400'}>{w.won?'W':'L'}</b> • Week {w.week} vs {w.opponent}</span><b>{you}-{them}</b></summary>{w.injuries?.length>0&&<div className="text-xs text-red-300 mt-2">Injury: {w.injuries.map(i=>i.playerName).join(', ')}</div>}<div className="grid sm:grid-cols-2 gap-2 mt-3">{(w.playerLines||[]).slice(0,12).map(l=><div key={`${w.week}-${l.playerId}`} className="bg-[#181818] p-2 text-xs"><b>{l.name}</b> <span className="text-zinc-500">{l.position}</span><div className="text-zinc-300">{l.passYds!=null&&`${l.passYds} PASS • ${l.passTD} TD`} {l.rushYds!=null&&`${l.rushYds} RUSH`} {l.recYds!=null&&`${l.receptions} REC • ${l.recYds} YDS`} {l.sacks!=null&&`${l.tackles} TKL • ${l.sacks} SACK • ${l.picks} INT`} {l.fgMade!=null&&`${l.fgMade}/${l.fgAtt} FG`}</div></div>)}</div></details>})}</div>;
+const ChemistryPanel=({chemistry,compact=false}:{chemistry:any,compact?:boolean})=><div className={`${compact?'':'mb-5'} bg-[#111] border border-[#D4AF37]/20 p-4`}><div className="flex items-center justify-between gap-3"><div><div className="text-[10px] text-[#D4AF37] font-black tracking-widest">TEAM CHEMISTRY</div><div className="text-3xl font-black">{chemistry.score}<span className="text-sm text-zinc-600">/99</span></div></div><Sparkles className="text-[#D4AF37]" size={28}/></div><div className="flex flex-wrap gap-1.5 mt-3">{chemistry.tags.length?chemistry.tags.map((t:string)=><span key={t} className="text-[9px] font-black border border-[#D4AF37]/25 bg-[#D4AF37]/10 text-[#D4AF37] px-2 py-1">{t}</span>):<span className="text-xs text-zinc-600">Add complementary stars and depth to unlock chemistry bonuses.</span>}</div>{!compact&&<div className="text-xs text-zinc-500 mt-3">{chemistry.note} Chemistry adds up to +{chemistry.offenseBonus} offense and +{chemistry.defenseBonus} defense to the simulation.</div>}</div>;
+const StoryCard=({story}:{story:Storyline})=><div className={`border p-5 ${story.tone==='red'?'border-red-500/30 bg-red-500/5':story.tone==='green'?'border-green-500/30 bg-green-500/5':story.tone==='blue'?'border-cyan-500/30 bg-cyan-500/5':'border-[#D4AF37]/40 bg-[#D4AF37]/5'}`}><div className="text-[10px] font-black tracking-[.22em] text-[#D4AF37]">{story.tag} • WEEK {story.week}</div><h3 className="text-2xl sm:text-3xl font-black mt-1">{story.headline}</h3><p className="text-sm text-zinc-400 mt-2">{story.deck}</p></div>;
+const StoryMini=({story}:{story:Storyline})=><div className="bg-[#181818] border border-white/5 p-3"><div className="text-[9px] text-[#D4AF37] font-black">{story.tag} • W{story.week}</div><div className="font-black mt-1">{story.headline}</div><div className="text-xs text-zinc-500 mt-1">{story.deck}</div></div>;
+const TradeCard=({offer,onAccept,onDecline}:{offer:SoloTradeOffer,onAccept:()=>void,onDecline:()=>void})=><div className="border border-cyan-400/30 bg-cyan-400/5 p-5"><div className="flex items-center gap-2 text-cyan-300 text-[10px] font-black tracking-[.22em]"><ArrowRightLeft size={15}/>TRADE CALL • WEEK {offer.week}</div><p className="text-sm text-zinc-400 mt-2">{offer.reason}</p><div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center mt-4"><div className="bg-[#121212] p-3"><div className="text-[9px] text-red-300 font-black">YOU SEND</div><b>{offer.outgoing.name}</b><div className="text-xs text-zinc-500">{offer.outgoing.position} • {offer.outgoing.ovr} OVR • ${offer.outgoing.salary.toFixed(2)}M</div></div><ArrowRightLeft className="text-cyan-300"/><div className="bg-[#121212] p-3"><div className="text-[9px] text-green-300 font-black">YOU GET</div><b>{offer.incoming.name}</b><div className="text-xs text-zinc-500">{offer.incoming.position} • {offer.incoming.ovr} OVR • ${offer.incoming.salary.toFixed(2)}M</div></div></div><div className="text-xs text-zinc-500 mt-3">Net cap: {offer.capDelta>=0?'+':''}${offer.capDelta.toFixed(2)}M</div><div className="grid grid-cols-2 gap-2 mt-4"><button onClick={onDecline} className="py-3 border border-white/10 font-black">DECLINE</button><button onClick={onAccept} className="py-3 bg-cyan-300 text-black font-black">ACCEPT TRADE</button></div></div>;
+const SeasonStats=({rows}:{rows:any[]})=><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-xs"><thead><tr className="text-left text-zinc-600 border-b border-white/10"><th className="py-2">PLAYER</th><th>POS</th><th>PASS</th><th>PTD</th><th>RUSH</th><th>REC</th><th>RECYD</th><th>TKL</th><th>SACK</th><th>INT</th><th>BK PTS</th></tr></thead><tbody>{rows.slice(0,29).map(r=><tr key={r.playerId} className="border-b border-white/5"><td className="py-2 font-black">{r.name}</td><td className="text-zinc-500">{r.position}</td><td>{r.passYds||'—'}</td><td>{r.passTD||'—'}</td><td>{r.rushYds||'—'}</td><td>{r.receptions||'—'}</td><td>{r.recYds||'—'}</td><td>{r.tackles||'—'}</td><td>{r.sacks||'—'}</td><td>{r.picks||'—'}</td><td className="text-[#D4AF37] font-black">{r.fantasy.toFixed(1)}</td></tr>)}</tbody></table>{rows.length===0&&<div className="py-8 text-center text-zinc-600">Stats populate after Week 1.</div>}</div>;

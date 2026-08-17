@@ -5,7 +5,7 @@ import {NFL_TEAMS, PLAYERS_DATABASE} from './players';
 import './index.css';
 
 const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-roster-map?key=ballknower-roster-v1';
-const TEAM_CACHE_KEY='ballknower_2026_official_roster_audit_v4';
+const TEAM_CACHE_KEY='ballknower_2026_official_roster_audit_v5';
 const TEAM_CACHE_TTL=30*60*1000;
 
 function normalizePlayerName(value:string){
@@ -52,7 +52,8 @@ function apply2026RatingOverrides(){
 function applyRosterAudit(payload:any){
   const rows=Array.isArray(payload?.rows)?payload.rows:[];
   const retiredRows=Array.isArray(payload?.retired)?payload.retired:[];
-  if(!rows.length)return {updated:0,freeAgents:0,removed:0};
+  const aliases=Array.isArray(payload?.aliases)?payload.aliases:[];
+  if(!rows.length)return {updated:0,freeAgents:0,removed:0,renamed:0};
 
   const byName=new Map<string,any[]>();
   for(const row of rows){
@@ -62,6 +63,14 @@ function applyRosterAudit(payload:any){
     bucket.push(row);
     byName.set(name,bucket);
   }
+
+  const aliasByIdentity=new Map<string,string>();
+  for(const row of aliases){
+    const key=identity(String(row?.alias||''),String(row?.position||''));
+    const current=String(row?.current||'').trim();
+    if(key&&current)aliasByIdentity.set(key,current);
+  }
+
   const retiredIds=new Set(retiredRows.map((row:any)=>identity(String(row?.name||''),String(row?.position||''))));
   const retiredNames=new Map<string,any[]>();
   for(const row of retiredRows){
@@ -71,14 +80,21 @@ function applyRosterAudit(payload:any){
     retiredNames.set(key,bucket);
   }
 
-  let updated=0,freeAgents=0,removed=0;
+  let updated=0,freeAgents=0,removed=0,renamed=0;
   for(let i=PLAYERS_DATABASE.length-1;i>=0;i--){
     const player=PLAYERS_DATABASE[i];
-    const nameKey=normalizePlayerName(player.name);
     const family=positionFamily(player.position);
+    const originalName=player.name;
+    const canonicalName=aliasByIdentity.get(identity(originalName,player.position))||originalName;
+    const nameKey=normalizePlayerName(canonicalName);
     const candidates=byName.get(nameKey)||[];
     let match=candidates.find(row=>positionFamily(String(row?.position||''))===family);
     if(!match&&candidates.length===1)match=candidates[0];
+
+    if(canonicalName!==originalName){
+      player.name=canonicalName;
+      renamed++;
+    }
 
     if(match){
       const team=String(match.team||'').toUpperCase();
@@ -99,8 +115,9 @@ function applyRosterAudit(payload:any){
       continue;
     }
 
-    const retiredForName=retiredNames.get(nameKey)||[];
-    const isRetired=retiredIds.has(identity(player.name,player.position)) ||
+    const retiredNameKey=normalizePlayerName(canonicalName);
+    const retiredForName=retiredNames.get(retiredNameKey)||[];
+    const isRetired=retiredIds.has(identity(canonicalName,player.position)) ||
       (retiredForName.length===1 && positionFamily(String(retiredForName[0]?.position||''))===family);
     if(isRetired){
       PLAYERS_DATABASE.splice(i,1);
@@ -108,7 +125,7 @@ function applyRosterAudit(payload:any){
       continue;
     }
 
-    // Not on any of the 32 current NFL rosters and not retired = free agent.
+    // Not on any of the 32 CURRENT NFL rosters and not retired = free agent.
     if(player.team!=='FA')updated++;
     player.team='FA';
     player.teamId='FA';
@@ -124,7 +141,7 @@ function applyRosterAudit(payload:any){
   }
 
   apply2026RatingOverrides();
-  return {updated,freeAgents,removed};
+  return {updated,freeAgents,removed,renamed};
 }
 
 async function syncCurrentTeams(){

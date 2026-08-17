@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useBallKnower } from '../context/BallKnowerContext';
-import { Trophy, Shield, User, LogOut, ChevronDown, Sparkles, Plus, Users, Award, Play } from 'lucide-react';
+import { Trophy, Shield, User, LogOut, ChevronDown, Sparkles, Plus, Users, Award, Play, Newspaper } from 'lucide-react';
 import { SoundtrackControl } from './SoundtrackControl';
 
 interface NavbarProps {
-  currentTab: 'home' | 'solo' | 'legacy' | 'lobby' | 'draft' | 'simulation';
-  setCurrentTab: (tab: 'home' | 'solo' | 'legacy' | 'lobby' | 'draft' | 'simulation') => void;
+  currentTab: 'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation';
+  setCurrentTab: (tab: 'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation') => void;
   onOpenAuth: () => void;
   onOpenCreateLeague: () => void;
   onOpenJoinLeague: () => void;
@@ -232,6 +232,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <Trophy className="h-3.5 w-3.5 text-[#D4AF37]" />
                       Dashboard & Leagues
                     </button>
+                    <button
+                      onClick={() => setCurrentTab('news')}
+                      className="w-full flex items-center gap-2 rounded-sm px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-zinc-300 hover:bg-[#1A1A1A] hover:text-white"
+                    >
+                      <Newspaper className="h-3.5 w-3.5 text-[#D4AF37]" />
+                      NFL Wire
+                    </button>
                     {onOpenIntro && (
                       <button
                         onClick={onOpenIntro}
@@ -287,6 +294,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             Overview
+          </button>
+
+          <button
+            id="nav-tab-news"
+            onClick={() => setCurrentTab('news')}
+            className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+              currentTab === 'news'
+                ? 'text-[#D4AF37] border-b-2 border-[#D4AF37]'
+                : 'text-zinc-500 hover:text-white'
+            }`}
+          >
+            <Newspaper className="h-3.5 w-3.5" />
+            <span>News</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
           </button>
 
           {activeLeague && (

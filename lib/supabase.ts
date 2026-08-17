@@ -34,7 +34,10 @@ export const isCloudConfigured = Boolean(url && key && !url.includes('YOUR_PROJE
 export const supabase: SupabaseClient | null = isCloudConfigured
   ? createClient(url!, key!, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-      global: { headers: { 'x-ball-knower-device': cloudDeviceId } },
+      // x-client-info is a standard Supabase CORS-safe header. We include the
+      // private device UUID here so Fantasy can identify a browser without
+      // requiring Anonymous Auth to be enabled.
+      global: { headers: { 'x-client-info': `ballknower-device/${cloudDeviceId}` } },
     })
   : null;
 
@@ -43,13 +46,8 @@ export async function ensureOnlineSession() {
   const { data } = await supabase.auth.getSession();
   if (data.session?.user) return data.session.user;
 
-  // Prefer a real Supabase session when Anonymous Sign-Ins are enabled.
-  // Ball Knower also supports a private per-device UUID so cloud leagues still
-  // work when that Supabase Auth provider is disabled.
-  try {
-    const { data: signed } = await supabase.auth.signInAnonymously();
-    if (signed.user) return signed.user;
-  } catch {}
-
+  // Fantasy/league access can run on the private per-device identity when no
+  // Supabase Auth session exists. Do not call signInAnonymously here because
+  // that provider is intentionally disabled on this project.
   return { id: cloudDeviceId } as any;
 }

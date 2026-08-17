@@ -106,6 +106,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center space-x-4 sm:space-x-8 h-full">
           <button id="nav-tab-home" onClick={() => setCurrentTab('home')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center whitespace-nowrap transition-colors ${currentTab==='home'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}>Overview</button>
 
+          <button id="nav-tab-solo-mobile" onClick={() => setCurrentTab('solo')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='solo'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Play className="h-3.5 w-3.5"/><span>Solo</span></button>
+
           <button id="nav-tab-news" onClick={() => setCurrentTab('news')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='news'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Newspaper className="h-3.5 w-3.5"/><span>News</span><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse"/></button>
 
           <button id="nav-tab-profile" onClick={() => setCurrentTab('legacy')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='legacy'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Trophy className="h-3.5 w-3.5"/><span>Profile</span></button>

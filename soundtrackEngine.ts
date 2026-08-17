@@ -100,13 +100,23 @@ export class SoundtrackEngine {
     if (!this.audio) {
       const audio = new Audio();
       audio.preload = 'auto';
-      audio.loop = true;
+      // Playlist mode: each song plays once, then advances automatically.
+      audio.loop = false;
       audio.playsInline = true;
       audio.volume = this.volume;
       audio.muted = this.isMuted;
+      audio.addEventListener('ended', () => {
+        if (!this.wantsPlayback || SOUNDTRACK_TRACKS.length === 0) return;
+        this.startTrack(this.currentTrackIndex + 1);
+      });
       this.audio = audio;
     }
     return this.audio;
+  }
+
+  private notifyTrackChanged(index: number) {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('ballknower-track-change', { detail: { index } }));
   }
 
   private async tryPlay() {
@@ -151,8 +161,10 @@ export class SoundtrackEngine {
       audio.load();
     }
 
+    audio.loop = false;
     audio.volume = this.volume;
     audio.muted = this.isMuted;
+    this.notifyTrackChanged(normalized);
     void this.tryPlay();
   }
 

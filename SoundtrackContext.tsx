@@ -30,7 +30,6 @@ const STORAGE_KEY_VOLUME = 'bk_soundtrack_volume';
 const STORAGE_KEY_TRACK = 'bk_soundtrack_track_idx';
 
 export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load initial preferences from localStorage (defaults: volume = 0.22, muted = false, track = 0)
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_MUTED);
@@ -59,10 +58,24 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [isIntroActive, setIsIntroActive] = useState<boolean>(true); // Starts true while intro is active
+  const [isIntroActive, setIsIntroActive] = useState<boolean>(true);
   const hasEverStartedRef = useRef<boolean>(false);
 
-  // Sync volume and mute state with engine
+  // Keep React/UI state synchronized when the audio engine automatically
+  // advances from one completed song to the next.
+  useEffect(() => {
+    const handleTrackChange = (event: Event) => {
+      const index = Number((event as CustomEvent<{ index?: number }>).detail?.index);
+      if (!Number.isInteger(index) || index < 0 || index >= SOUNDTRACK_TRACKS.length) return;
+      setCurrentTrackIndex(index);
+      setIsPlaying(true);
+      hasEverStartedRef.current = true;
+    };
+
+    window.addEventListener('ballknower-track-change', handleTrackChange as EventListener);
+    return () => window.removeEventListener('ballknower-track-change', handleTrackChange as EventListener);
+  }, []);
+
   useEffect(() => {
     globalSoundtrackEngine.setMuted(isMuted);
     try {
@@ -84,7 +97,7 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [currentTrackIndex]);
 
   const play = useCallback(() => {
-    if (isIntroActive) return; // Do not play over intro
+    if (isIntroActive) return;
     globalSoundtrackEngine.startTrack(currentTrackIndex);
     setIsPlaying(true);
     hasEverStartedRef.current = true;
@@ -127,7 +140,6 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     selectTrack(prevIdx);
   }, [currentTrackIndex, selectTrack]);
 
-  // Sound effect triggers
   const playDraftPickSfx = useCallback(() => {
     globalSoundtrackEngine.playDraftPickSound();
   }, []);
@@ -144,15 +156,12 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     globalSoundtrackEngine.playWarningSound();
   }, []);
 
-  // Control intro interaction: If intro finishes/closes, start the background soundtrack immediately!
   const setIntroActive = useCallback((active: boolean) => {
     setIsIntroActive(active);
     if (active) {
-      // Pause background music while intro is playing
       globalSoundtrackEngine.stop();
       setIsPlaying(false);
     } else {
-      // Intro ended or skipped -> start the main soundtrack seamlessly!
       globalSoundtrackEngine.setVolume(volume);
       globalSoundtrackEngine.setMuted(isMuted);
       globalSoundtrackEngine.startTrack(currentTrackIndex);
@@ -161,7 +170,6 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [volume, isMuted, currentTrackIndex]);
 
-  // Browser Autoplay Fallback: Listen to first user gesture anywhere if audio context was locked
   useEffect(() => {
     const handleFirstUserGesture = () => {
       if (!isIntroActive && !isPlaying && !hasEverStartedRef.current) {

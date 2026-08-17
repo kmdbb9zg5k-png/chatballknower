@@ -69,6 +69,24 @@ export const SOUNDTRACK_TRACKS: SoundtrackTrack[] = [
     durationSec: 191,
     audioUrl: sunoAudio('3d5afbae-7d13-406d-b6c4-bafb4a23c546'),
   },
+  {
+    id: 'fourth-down-smoke',
+    title: 'Fourth Down Smoke',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 136,
+    mood: 'Fourth Down',
+    durationSec: 163,
+    audioUrl: sunoAudio('af6a8af1-a07f-4285-8ea5-e238b3d88708'),
+  },
+  {
+    id: 'end-zone-fever',
+    title: 'End Zone Fever',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 99,
+    mood: 'End Zone',
+    durationSec: 164,
+    audioUrl: sunoAudio('c5767de2-0804-4b2f-991b-b543972b6d42'),
+  },
 ];
 
 export class SoundtrackEngine {

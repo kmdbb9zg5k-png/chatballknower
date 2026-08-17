@@ -6,6 +6,8 @@ interface CinematicIntroProps {
   onClose: () => void;
 }
 
+const INTRO_VIDEO_URL = 'https://raw.githubusercontent.com/kmdbb9zg5k-png/ball-knower1.0/main/public/assets/Creating_football_intro_video_202608160231.mp4';
+
 export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -59,7 +61,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     video.play().catch(() => {
       video.muted = true;
       setIsMuted(true);
-      video.play().catch(() => {});
+      video.play().catch(() => setAutoplayBlocked(true));
     });
   };
 
@@ -67,7 +69,7 @@ export const CinematicIntro: React.FC<CinematicIntroProps> = ({ isOpen, onClose 
     <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden">
       <video
         ref={videoRef}
-        src="/assets/ball-knower-opening.mp4"
+        src={INTRO_VIDEO_URL}
         className="absolute inset-0 h-full w-full object-cover bg-black"
         playsInline
         preload="auto"

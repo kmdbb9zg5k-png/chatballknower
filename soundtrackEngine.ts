@@ -60,6 +60,15 @@ export const SOUNDTRACK_TRACKS: SoundtrackTrack[] = [
     durationSec: 121,
     audioUrl: sunoAudio('e4b60b48-e421-4abd-aeb9-2c8847f2f645'),
   },
+  {
+    id: 'fourth-quarter-king',
+    title: 'Fourth Quarter King',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 100,
+    mood: 'Fourth Quarter',
+    durationSec: 191,
+    audioUrl: sunoAudio('3d5afbae-7d13-406d-b6c4-bafb4a23c546'),
+  },
 ];
 
 export class SoundtrackEngine {

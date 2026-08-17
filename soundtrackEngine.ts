@@ -87,6 +87,15 @@ export const SOUNDTRACK_TRACKS: SoundtrackTrack[] = [
     durationSec: 164,
     audioUrl: sunoAudio('c5767de2-0804-4b2f-991b-b543972b6d42'),
   },
+  {
+    id: 'la-toma-perfecta',
+    title: 'La Toma Perfecta',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 94,
+    mood: 'Takeover',
+    durationSec: 161,
+    audioUrl: sunoAudio('32d9a614-83cd-4309-98d0-e09ad20efe7d'),
+  },
 ];
 
 export class SoundtrackEngine {

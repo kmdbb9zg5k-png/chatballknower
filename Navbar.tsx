@@ -4,8 +4,8 @@ import { Trophy, Shield, User, LogOut, ChevronDown, Sparkles, Plus, Users, Award
 import { SoundtrackControl } from './SoundtrackControl';
 
 interface NavbarProps {
-  currentTab: 'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation';
-  setCurrentTab: (tab: 'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation') => void;
+  currentTab: 'home' | 'solo' | 'news' | 'fantasy' | 'legacy' | 'lobby' | 'draft' | 'simulation';
+  setCurrentTab: (tab: 'home' | 'solo' | 'news' | 'fantasy' | 'legacy' | 'lobby' | 'draft' | 'simulation') => void;
   onOpenAuth: () => void;
   onOpenCreateLeague: () => void;
   onOpenJoinLeague: () => void;
@@ -91,6 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="px-3 py-2 border-b border-white/5"><p className="text-xs font-black uppercase text-white tracking-tight truncate">{currentUser.name}</p><p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono truncate">{currentUser.email}</p></div>
               <div className="py-1">
                 <MenuButton icon={<Trophy className="h-3.5 w-3.5 text-[#D4AF37]"/>} label="Dashboard & Leagues" onClick={()=>setCurrentTab('home')}/>
+                <MenuButton icon={<Users className="h-3.5 w-3.5 text-[#D4AF37]"/>} label="Fantasy Football" onClick={()=>setCurrentTab('fantasy')}/>
                 <MenuButton icon={<User className="h-3.5 w-3.5 text-[#D4AF37]"/>} label="Profile & Rankings" onClick={()=>setCurrentTab('legacy')}/>
                 <MenuButton icon={<Newspaper className="h-3.5 w-3.5 text-[#D4AF37]"/>} label="NFL Wire" onClick={()=>setCurrentTab('news')}/>
                 {onOpenIntro&&<MenuButton icon={<Play className="h-3.5 w-3.5 text-[#D4AF37]"/>} label="Watch Intro Video" onClick={onOpenIntro}/>} 
@@ -109,6 +110,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button id="nav-tab-solo-mobile" onClick={() => setCurrentTab('solo')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='solo'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Play className="h-3.5 w-3.5"/><span>Solo</span></button>
 
           <button id="nav-tab-news" onClick={() => setCurrentTab('news')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='news'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Newspaper className="h-3.5 w-3.5"/><span>News</span><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse"/></button>
+
+          <button id="nav-tab-fantasy" onClick={() => setCurrentTab('fantasy')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='fantasy'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Users className="h-3.5 w-3.5"/><span>Fantasy</span><span className="rounded-sm bg-[#D4AF37] px-1 py-0.5 text-[7px] leading-none text-black">NEW</span></button>
 
           <button id="nav-tab-profile" onClick={() => setCurrentTab('legacy')} className={`text-xs font-black uppercase tracking-widest h-full flex items-center gap-1.5 whitespace-nowrap transition-colors ${currentTab==='legacy'?'text-[#D4AF37] border-b-2 border-[#D4AF37]':'text-zinc-500 hover:text-white'}`}><Trophy className="h-3.5 w-3.5"/><span>Profile</span></button>
 

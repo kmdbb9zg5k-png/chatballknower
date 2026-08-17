@@ -15,6 +15,7 @@ import { SoloMode } from './SoloMode';
 import { HallOfFame, NFLNewsPage } from './HallOfFame';
 import { PLAYERS_DATABASE } from './players';
 import { League } from './types';
+import { ensureOnlineSession, supabase } from './lib/supabase';
 import {
   CheckCircle2,
   Play,
@@ -26,6 +27,11 @@ import {
   DollarSign,
   Brain,
   CalendarDays,
+  Shield,
+  Plus,
+  Settings,
+  Radio,
+  ArrowRight,
 } from 'lucide-react';
 
 const CAP_CACHE_KEY = 'ballknower_2026_cap_hits_v1';
@@ -120,7 +126,7 @@ function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         <div className="flex items-center justify-between border-b border-white/10 pb-5">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">BALL KNOWER</div>
-            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-600">NFL Team Building Simulator</div>
+            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-600">Football Competition & Fantasy Platform</div>
           </div>
           <div className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-[#D4AF37]">2026 Season</div>
         </div>
@@ -131,16 +137,16 @@ function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
             Build A Team.<br /><span className="text-[#D4AF37]">Prove It Can Win.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-sm font-medium leading-6 text-zinc-400 sm:text-base">
-            Ball Knower is simple: draft real NFL players, stay under the salary cap, then simulate a full season to see if your football knowledge actually builds a winner.
+            Ball Knower starts with football knowledge, then keeps going: compete for draft order, run a real fantasy draft, manage the season, and chase a championship in one place.
           </p>
         </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[
-            { icon: DollarSign, step: '01', title: 'Draft', text: 'Choose current NFL players while staying under the salary cap.' },
-            { icon: Brain, step: '02', title: 'Build Smart', text: 'Ratings, positions, depth and roster balance all matter.' },
-            { icon: CalendarDays, step: '03', title: 'Sim 17 Games', text: 'Your roster plays through a complete NFL regular season.' },
-            { icon: Trophy, step: '04', title: 'Win It All', text: 'Make the playoffs, survive the postseason and chase a title.' },
+            { icon: DollarSign, step: '01', title: 'Prove It', text: 'Build real NFL teams under the cap and compete for draft position.' },
+            { icon: Brain, step: '02', title: 'Draft Smart', text: 'Carry your earned order straight into the real fantasy draft room.' },
+            { icon: CalendarDays, step: '03', title: 'Play Sundays', text: 'Set lineups, score real NFL games and battle every week.' },
+            { icon: Trophy, step: '04', title: 'Win It All', text: 'Survive waivers, trades and playoffs to become league champion.' },
           ].map(({ icon: Icon, step, title, text }) => (
             <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10"><Icon className="h-5 w-5 text-[#D4AF37]" /></div>
@@ -158,7 +164,7 @@ function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           </div>
           <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-[#101010] p-5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5"><Users className="h-5 w-5 text-[#D4AF37]" /></div>
-            <div><div className="text-sm font-black uppercase">Play With Friends</div><div className="mt-1 text-[11px] text-zinc-500">Build competing teams and find out who actually knows ball.</div></div>
+            <div><div className="text-sm font-black uppercase">Full Fantasy</div><div className="mt-1 text-[11px] text-zinc-500">Run the draft, weekly matchups, waivers, trades and playoffs.</div></div>
           </div>
         </div>
 
@@ -166,18 +172,161 @@ function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           <button onClick={onEnter} className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#D4AF37] px-8 py-5 text-sm font-black uppercase tracking-[0.2em] text-black shadow-[0_0_40px_rgba(212,175,55,0.15)] transition-all hover:scale-[1.01] hover:bg-[#E7C75B]">
             Enter Ball Knower <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
           </button>
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-600">No fantasy points. No weekly lineups. Just build the best football team.</p>
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-600">Ball Knower competition + full fantasy football, all in one place.</p>
         </div>
       </div>
     </div>
   );
 }
 
+function FantasyHub() {
+  const { currentUser } = useBallKnower();
+  const [leagues, setLeagues] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [selectedLeague, setSelectedLeague] = useState<any | null>(null);
+  const [joinCode, setJoinCode] = useState('');
+  const [form, setForm] = useState({ name: 'Sunday Gridiron Fantasy League', teamCount: 10, format: 'redraft', draftType: 'snake', scoring: 'ppr', waiver: 'faab', playoffTeams: 6, combine: true });
+
+  const loadLeagues = async () => {
+    if (!supabase) { setMessage('Fantasy cloud is not configured.'); setLoading(false); return; }
+    try {
+      await ensureOnlineSession();
+      const { data, error } = await supabase.from('fantasy_leagues').select('*, fantasy_members(id,display_name,team_name,role,draft_slot)').order('created_at', { ascending: false });
+      if (error) throw error;
+      setLeagues(data || []);
+      if (selectedLeague) setSelectedLeague((data || []).find((x:any) => x.id === selectedLeague.id) || null);
+    } catch (error:any) {
+      setMessage(error?.message || 'Could not load fantasy leagues.');
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { void loadLeagues(); }, []);
+
+  const createFantasyLeague = async () => {
+    if (!supabase) return setMessage('Fantasy cloud is not configured.');
+    const name = form.name.trim();
+    if (!name) return setMessage('Give your fantasy league a name.');
+    setLoading(true); setMessage('');
+    try {
+      const user = await ensureOnlineSession();
+      const code = `BKF-${Math.random().toString(36).slice(2,7).toUpperCase()}`;
+      const { data: league, error } = await supabase.from('fantasy_leagues').insert({
+        code,
+        name,
+        commissioner_id: user.id,
+        format: form.format,
+        draft_type: form.draftType,
+        scoring_format: form.scoring,
+        waiver_type: form.waiver,
+        team_count: form.teamCount,
+        playoff_teams: Math.min(form.playoffTeams, form.teamCount),
+        ball_knower_combine: form.combine,
+        status: form.combine ? 'combine' : 'setup',
+        settings: { lineup: ['QB','RB','RB','WR','WR','TE','FLEX','K','DEF','BN','BN','BN','BN','BN','BN'], trade_deadline_week: 12, faab_budget: 100 },
+      }).select().single();
+      if (error) throw error;
+      const displayName = currentUser?.name || 'Commissioner';
+      const { error: memberError } = await supabase.from('fantasy_members').insert({ league_id: league.id, user_id: user.id, display_name: displayName, team_name: `${displayName}'s Team`, role: 'commissioner' });
+      if (memberError) throw memberError;
+      await supabase.from('fantasy_drafts').insert({ league_id: league.id, pick_seconds: 90 });
+      if (form.scoring === 'ppr') await supabase.from('fantasy_scoring_rules').insert({ league_id: league.id });
+      else if (form.scoring === 'half_ppr') await supabase.from('fantasy_scoring_rules').insert({ league_id: league.id, rules: { pass_yd:.04, pass_td:4, interception:-2, rush_yd:.1, rush_td:6, reception:.5, rec_yd:.1, rec_td:6, fumble_lost:-2 } });
+      else if (form.scoring === 'standard') await supabase.from('fantasy_scoring_rules').insert({ league_id: league.id, rules: { pass_yd:.04, pass_td:4, interception:-2, rush_yd:.1, rush_td:6, reception:0, rec_yd:.1, rec_td:6, fumble_lost:-2 } });
+      setCreateOpen(false);
+      setMessage(`Fantasy league created. Invite code: ${code}`);
+      await loadLeagues();
+      setSelectedLeague({ ...league, fantasy_members: [{ id:'me', display_name:displayName, team_name:`${displayName}'s Team`, role:'commissioner' }] });
+    } catch (error:any) {
+      setMessage(error?.message || 'Could not create fantasy league.');
+    } finally { setLoading(false); }
+  };
+
+  const joinFantasyLeague = async () => {
+    if (!supabase) return setMessage('Fantasy cloud is not configured.');
+    if (!joinCode.trim()) return setMessage('Enter the fantasy league code.');
+    setLoading(true); setMessage('');
+    try {
+      await ensureOnlineSession();
+      const { data, error } = await supabase.rpc('join_fantasy_league_by_code', { p_code: joinCode.trim().toUpperCase(), p_display_name: currentUser?.name || 'Ball Knower' });
+      if (error) throw error;
+      setJoinOpen(false); setJoinCode('');
+      setMessage('You joined the fantasy league.');
+      await loadLeagues();
+      if (data) {
+        const { data: league } = await supabase.from('fantasy_leagues').select('*, fantasy_members(id,display_name,team_name,role,draft_slot)').eq('id', data).single();
+        if (league) setSelectedLeague(league);
+      }
+    } catch (error:any) {
+      setMessage(error?.message || 'Could not join that fantasy league.');
+    } finally { setLoading(false); }
+  };
+
+  const stageIndex = (status:string) => status === 'combine' ? 0 : status === 'setup' ? 0 : status === 'draft' ? 1 : status === 'regular_season' ? 2 : status === 'playoffs' ? 3 : status === 'complete' ? 4 : 0;
+
+  return <div className="min-h-screen bg-[#090909] text-white px-4 sm:px-8 py-7">
+    <div className="mx-auto max-w-7xl">
+      <section className="relative overflow-hidden border border-[#D4AF37]/25 bg-[#111] p-6 sm:p-9 mb-6">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,.14),transparent_45%)]" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.28em] text-green-400"><Radio size={14}/> NEW • BALL KNOWER FANTASY</div>
+          <h2 className="mt-3 text-4xl sm:text-6xl font-black uppercase leading-[.92]">PROVE IT. DRAFT IT.<br/><span className="text-[#D4AF37]">RUN THE LEAGUE.</span></h2>
+          <p className="mt-4 max-w-3xl text-sm sm:text-base leading-6 text-zinc-400">Your Ball Knower competition can determine the real fantasy draft order, then the same league continues into the draft, weekly matchups, waivers, trades and playoffs.</p>
+          <div className="mt-6 grid sm:grid-cols-2 gap-3 max-w-xl">
+            <button onClick={()=>{setCreateOpen(!createOpen);setJoinOpen(false)}} className="flex items-center justify-center gap-2 bg-[#D4AF37] text-black py-4 font-black uppercase tracking-wider"><Plus size={17}/> Create Fantasy League</button>
+            <button onClick={()=>{setJoinOpen(!joinOpen);setCreateOpen(false)}} className="flex items-center justify-center gap-2 border border-white/15 bg-[#181818] py-4 font-black uppercase tracking-wider"><Users size={17}/> Join With Code</button>
+          </div>
+        </div>
+      </section>
+
+      {message && <div className="mb-5 border border-[#D4AF37]/30 bg-[#D4AF37]/5 px-4 py-3 text-sm font-bold text-[#E7C95F]">{message}</div>}
+
+      {createOpen && <section className="mb-6 border border-white/10 bg-[#111] p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-5"><Settings className="text-[#D4AF37]"/><div><div className="text-xs font-black text-[#D4AF37] tracking-widest">CREATE LEAGUE</div><h3 className="text-2xl font-black">Commissioner Setup</h3></div></div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <FantasyField label="LEAGUE NAME"><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="w-full bg-[#181818] border border-white/10 p-3 outline-none focus:border-[#D4AF37]"/></FantasyField>
+          <FantasyField label="TEAMS"><select value={form.teamCount} onChange={e=>setForm({...form,teamCount:Number(e.target.value)})} className="w-full bg-[#181818] border border-white/10 p-3">{[6,8,10,12,14,16].map(n=><option key={n} value={n}>{n} teams</option>)}</select></FantasyField>
+          <FantasyField label="FORMAT"><select value={form.format} onChange={e=>setForm({...form,format:e.target.value})} className="w-full bg-[#181818] border border-white/10 p-3"><option value="redraft">Redraft</option><option value="keeper">Keeper</option><option value="dynasty">Dynasty</option><option value="best_ball">Best Ball</option></select></FantasyField>
+          <FantasyField label="DRAFT"><select value={form.draftType} onChange={e=>setForm({...form,draftType:e.target.value})} className="w-full bg-[#181818] border border-white/10 p-3"><option value="snake">Snake Draft</option><option value="linear">Linear Draft</option><option value="salary_cap">Salary Cap Draft</option></select></FantasyField>
+          <FantasyField label="SCORING"><select value={form.scoring} onChange={e=>setForm({...form,scoring:e.target.value})} className="w-full bg-[#181818] border border-white/10 p-3"><option value="ppr">Full PPR</option><option value="half_ppr">Half PPR</option><option value="standard">Standard</option><option value="custom">Custom</option></select></FantasyField>
+          <FantasyField label="WAIVERS"><select value={form.waiver} onChange={e=>setForm({...form,waiver:e.target.value})} className="w-full bg-[#181818] border border-white/10 p-3"><option value="faab">FAAB</option><option value="rolling">Rolling Priority</option><option value="reverse_standings">Reverse Standings</option><option value="none">Free Agents</option></select></FantasyField>
+        </div>
+        <label className="mt-4 flex items-center gap-3 border border-[#D4AF37]/20 bg-[#D4AF37]/5 p-4 cursor-pointer"><input type="checkbox" checked={form.combine} onChange={e=>setForm({...form,combine:e.target.checked})}/><div><b className="text-[#D4AF37]">Use the Ball Knower Combine</b><div className="text-xs text-zinc-500">Managers compete in Ball Knower first. Final standings automatically become the real fantasy draft order.</div></div></label>
+        <button disabled={loading} onClick={createFantasyLeague} className="mt-5 w-full sm:w-auto bg-[#D4AF37] disabled:opacity-50 text-black px-7 py-4 font-black uppercase tracking-wider">{loading?'CREATING…':'CREATE LEAGUE & GET CODE'}</button>
+      </section>}
+
+      {joinOpen && <section className="mb-6 border border-white/10 bg-[#111] p-5 sm:p-6"><div className="text-xs font-black text-[#D4AF37] tracking-widest">JOIN FANTASY LEAGUE</div><h3 className="text-2xl font-black mt-1">Enter the commissioner code.</h3><div className="mt-4 flex flex-col sm:flex-row gap-2 max-w-xl"><input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="BKF-XXXXX" className="flex-1 bg-[#181818] border border-white/10 p-4 font-mono font-black uppercase outline-none focus:border-[#D4AF37]"/><button disabled={loading} onClick={joinFantasyLeague} className="bg-[#D4AF37] text-black px-6 py-4 font-black">JOIN</button></div></section>}
+
+      <section className="grid grid-cols-4 gap-2 mb-7">
+        {[['01','COMBINE','Earn order'],['02','DRAFT','Build roster'],['03','SEASON','Live scoring'],['04','PLAYOFFS','Win it all']].map(([n,t,d])=><div key={n} className="border border-white/10 bg-[#111] p-3 sm:p-4"><div className="text-[9px] text-[#D4AF37] font-black">{n}</div><div className="text-[10px] sm:text-sm font-black mt-1">{t}</div><div className="hidden sm:block text-[10px] text-zinc-600 mt-1">{d}</div></div>)}
+      </section>
+
+      {selectedLeague && <section className="mb-7 border border-[#D4AF37]/30 bg-[#111] p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4"><div><div className="text-[10px] text-[#D4AF37] font-black tracking-widest">LEAGUE HQ • {selectedLeague.code}</div><h3 className="text-3xl font-black mt-1">{selectedLeague.name}</h3><p className="text-sm text-zinc-500 mt-1">{(selectedLeague.fantasy_members||[]).length}/{selectedLeague.team_count} managers • {String(selectedLeague.scoring_format).replace('_',' ').toUpperCase()} • {String(selectedLeague.draft_type).replace('_',' ').toUpperCase()}</p></div><button onClick={()=>setSelectedLeague(null)} className="border border-white/10 px-3 py-2 text-xs font-black">CLOSE</button></div>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mt-5">
+          {['COMBINE','DRAFT ROOM','MATCHUPS','WAIVERS','TRADES','COMMISSIONER'].map((x,i)=><div key={x} className={`p-3 border ${i===stageIndex(selectedLeague.status)?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/10 bg-[#151515]'}`}><div className="text-[9px] text-zinc-600">{i===stageIndex(selectedLeague.status)?'CURRENT':'MODULE'}</div><b className={i===stageIndex(selectedLeague.status)?'text-[#D4AF37]':''}>{x}</b></div>)}
+        </div>
+        <div className="mt-5 grid sm:grid-cols-2 gap-3"><div className="border border-white/10 p-4"><div className="text-[9px] text-zinc-600 font-black tracking-widest">MANAGERS</div>{(selectedLeague.fantasy_members||[]).map((m:any)=><div key={m.id} className="flex justify-between py-2 border-b border-white/5 text-sm"><span>{m.display_name}</span><span className="text-zinc-500">{m.role==='commissioner'?'COMMISH':m.draft_slot?`PICK ${m.draft_slot}`:'JOINED'}</span></div>)}</div><div className="border border-white/10 p-4"><div className="text-[9px] text-zinc-600 font-black tracking-widest">NEXT BUILD</div><h4 className="font-black text-xl mt-1">Live Draft War Room</h4><p className="text-xs text-zinc-500 mt-2">Timer, queue, auto-pick, Madden-style player cards, draft board and the Ball Knower-earned draft order.</p></div></div>
+      </section>}
+
+      <section>
+        <div className="flex items-end justify-between gap-4 mb-3"><div><div className="text-[10px] text-[#D4AF37] font-black tracking-widest">YOUR FANTASY LEAGUES</div><h3 className="text-2xl font-black">League Command Center</h3></div><button onClick={()=>void loadLeagues()} className="text-xs border border-white/10 px-3 py-2">REFRESH</button></div>
+        {loading && leagues.length===0 ? <div className="border border-white/10 bg-[#111] p-8 text-zinc-500">Loading fantasy leagues…</div> : leagues.length===0 ? <div className="border border-white/10 bg-[#111] p-8 text-center"><Shield className="mx-auto text-zinc-700" size={42}/><h4 className="font-black text-xl mt-3">No fantasy leagues yet.</h4><p className="text-sm text-zinc-500 mt-1">Create the first one and Ball Knower generates the invite code.</p></div> : <div className="grid md:grid-cols-2 gap-3">{leagues.map((league:any)=><button key={league.id} onClick={()=>setSelectedLeague(league)} className="text-left border border-white/10 bg-[#111] p-5 hover:border-[#D4AF37]/50"><div className="flex justify-between gap-3"><div><div className="text-[10px] font-black text-[#D4AF37]">{league.code}</div><h4 className="text-xl font-black mt-1">{league.name}</h4></div><span className="h-fit border border-green-500/25 bg-green-500/5 text-green-400 px-2 py-1 text-[9px] font-black uppercase">{String(league.status).replace('_',' ')}</span></div><div className="grid grid-cols-3 gap-2 mt-4 text-center"><FantasyMini label="MANAGERS" value={`${(league.fantasy_members||[]).length}/${league.team_count}`}/><FantasyMini label="SCORING" value={String(league.scoring_format).replace('_',' ').toUpperCase()}/><FantasyMini label="DRAFT" value={String(league.draft_type).replace('_',' ').toUpperCase()}/></div><div className="mt-4 text-xs text-zinc-500 flex items-center gap-1">Open League HQ <ArrowRight size={13}/></div></button>)}</div>}
+      </section>
+    </div>
+  </div>;
+}
+
+const FantasyField = ({label,children}:{label:string;children:React.ReactNode}) => <label><div className="mb-2 text-[9px] font-black tracking-widest text-zinc-500">{label}</div>{children}</label>;
+const FantasyMini = ({label,value}:{label:string;value:string}) => <div className="bg-[#0b0b0b] border border-white/5 p-2"><div className="text-[8px] text-zinc-600 font-black">{label}</div><div className="text-xs font-black mt-1 truncate">{value}</div></div>;
+
 function BallKnowerApp() {
   const { activeLeague, setActiveLeagueId, toastMessage, joinLeague } = useBallKnower();
   const { setIntroActive } = useSoundtrack();
 
-  const [currentTab, setCurrentTab] = useState<'home' | 'solo' | 'news' | 'legacy' | 'lobby' | 'draft' | 'simulation'>('home');
+  const [currentTab, setCurrentTab] = useState<'home' | 'solo' | 'news' | 'fantasy' | 'legacy' | 'lobby' | 'draft' | 'simulation'>('home');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCreateLeagueOpen, setIsCreateLeagueOpen] = useState(false);
   const [isJoinLeagueOpen, setIsJoinLeagueOpen] = useState(false);
@@ -257,6 +406,7 @@ function BallKnowerApp() {
             {currentTab === 'home' && <HomeDashboard onOpenCreateLeague={() => setIsCreateLeagueOpen(true)} onOpenJoinLeague={() => setIsJoinLeagueOpen(true)} onSelectLeague={handleSelectLeague} />}
             {currentTab === 'solo' && <SoloMode />}
             {currentTab === 'news' && <NFLNewsPage />}
+            {currentTab === 'fantasy' && <FantasyHub />}
             {currentTab === 'legacy' && <HallOfFame />}
             {currentTab === 'lobby' && activeLeague && <LeagueLobby league={activeLeague} onGoToDraft={() => setCurrentTab('draft')} onGoToSimulation={() => setCurrentTab('simulation')} />}
             {currentTab === 'draft' && <DraftRoom onBackToLobby={() => setCurrentTab(activeLeague ? 'lobby' : 'home')} onSubmitSuccess={() => setCurrentTab(activeLeague ? 'lobby' : 'home')} />}
@@ -277,7 +427,7 @@ function BallKnowerApp() {
             <div className="flex items-center gap-4 text-zinc-600 font-mono-numbers">
               <span>NFL SEASON: <span className="text-[#D4AF37]">2026</span></span>
               <span>STATUS: <span className="text-[#00FF00]">ACTIVE</span></span>
-              <span>17-GAME SOLO + LEAGUE SIM</span>
+              <span>SOLO + DRAFT ORDER + FANTASY</span>
               <span>V1.0 GAME BUILD</span>
             </div>
           </footer>

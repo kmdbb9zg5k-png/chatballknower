@@ -1,6 +1,5 @@
 import { ensureOnlineSession, isCloudConfigured, supabase } from '../lib/supabase';
-import { CareerProfile } from '../utils/soloSeasonEngine';
-import { calculateBkRating } from '../soloImmersion';
+import { CareerProfile, calculateBkRating } from '../utils/soloSeasonEngine';
 
 export interface CareerPublishExtras {
   favoriteTeam?:string;

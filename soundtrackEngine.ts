@@ -16,13 +16,13 @@ const sunoAudio = (id: string) => `https://cdn1.suno.ai/${id}.mp3`;
  */
 export const SOUNDTRACK_TRACKS: SoundtrackTrack[] = [
   {
-    id: 'war-room-draft-remastered',
-    title: 'War Room Draft (Remastered)',
-    subtitle: 'elifromthesouth • Original Ball Knower Instrumental',
+    id: 'war-room-draft-original',
+    title: 'War Room Draft',
+    subtitle: 'elifromthesouth • Original Instrumental',
     tempoBpm: 96,
-    mood: 'War Room',
+    mood: 'On The Clock',
     durationSec: 89,
-    audioUrl: sunoAudio('df531107-7fdb-4057-8729-9abaf4aa2177'),
+    audioUrl: sunoAudio('022d8ec1-d5e5-4c10-a0a3-222a2ec37b20'),
   },
   {
     id: 'draft-day-kings',
@@ -60,15 +60,6 @@ export const SOUNDTRACK_TRACKS: SoundtrackTrack[] = [
     durationSec: 121,
     audioUrl: sunoAudio('e4b60b48-e421-4abd-aeb9-2c8847f2f645'),
   },
-  {
-    id: 'war-room-draft-original',
-    title: 'War Room Draft',
-    subtitle: 'elifromthesouth • Original Instrumental',
-    tempoBpm: 96,
-    mood: 'On The Clock',
-    durationSec: 89,
-    audioUrl: sunoAudio('022d8ec1-d5e5-4c10-a0a3-222a2ec37b20'),
-  },
 ];
 
 export class SoundtrackEngine {
@@ -83,8 +74,6 @@ export class SoundtrackEngine {
   constructor() {
     if (typeof window !== 'undefined') {
       const retry = () => {
-        // Run after React's click/touch handler so a just-finished intro can
-        // mark the soundtrack as wanted before we retry iOS autoplay.
         window.setTimeout(() => {
           if (this.wantsPlayback) void this.tryPlay();
         }, 0);
@@ -100,7 +89,7 @@ export class SoundtrackEngine {
     if (!this.audio) {
       const audio = new Audio();
       audio.preload = 'auto';
-      // Playlist mode: each song plays once, then advances automatically.
+      // Playlist mode: play each song once, then advance to the next track.
       audio.loop = false;
       audio.playsInline = true;
       audio.volume = this.volume;
@@ -126,8 +115,7 @@ export class SoundtrackEngine {
       await audio.play();
       this.isPlaying = true;
     } catch {
-      // Safari/iOS may block playback until a user gesture. The listeners in
-      // the constructor retry automatically on the next tap/key press.
+      // Safari/iOS may block playback until the next user gesture.
       this.isPlaying = false;
     }
   }

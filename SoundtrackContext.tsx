@@ -28,6 +28,9 @@ const SoundtrackContext = createContext<SoundtrackContextType | undefined>(undef
 const STORAGE_KEY_MUTED = 'bk_soundtrack_muted';
 const STORAGE_KEY_VOLUME = 'bk_soundtrack_volume';
 const STORAGE_KEY_TRACK = 'bk_soundtrack_track_idx';
+const TEAM_ONBOARDING_KEY = 'ballknower_team_wheel_onboarding_v2';
+const TEAM_FAVORITE_KEY = 'ballknower_favorite_team_v1';
+const TEAM_PICKER_ID = 'bk-favorite-team-picker';
 
 // The live Vercel loader flattens the normal utils wrapper import to the root
 // soundtrack module. Keep the newest tracks available here too so the live app
@@ -88,6 +91,43 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isIntroActive, setIsIntroActive] = useState<boolean>(true);
   const hasEverStartedRef = useRef<boolean>(false);
 
+  // Force the new 32-team wheel once for this onboarding version, even if an
+  // older favorite-team value already exists. ?teamsetup=1 always force-opens.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    let completed = false;
+    let forceOpen = false;
+    try {
+      completed = localStorage.getItem(TEAM_ONBOARDING_KEY) === 'done';
+      forceOpen = new URLSearchParams(window.location.search).get('teamsetup') === '1';
+    } catch {}
+    if (completed && !forceOpen) return;
+
+    let opened = false;
+    const timer = window.setTimeout(() => {
+      opened = true;
+      window.dispatchEvent(new Event('ballknower-open-team-picker'));
+    }, 1800);
+
+    const observer = new MutationObserver(() => {
+      if (!opened) return;
+      const picker = document.getElementById(TEAM_PICKER_ID);
+      let favorite = '';
+      try { favorite = localStorage.getItem(TEAM_FAVORITE_KEY) || ''; } catch {}
+      if (!picker && favorite) {
+        try { localStorage.setItem(TEAM_ONBOARDING_KEY, 'done'); } catch {}
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     const handleTrackChange = (event: Event) => {
       const index = Number((event as CustomEvent<{ index?: number }>).detail?.index);
@@ -114,12 +154,17 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       try { saved = localStorage.getItem(favoriteKey) || ''; } catch {}
       const confirmVisible = Boolean(document.querySelector('[data-bk-team-confirm]'));
       if (confirmVisible && saved === code) {
+        try { localStorage.setItem(TEAM_ONBOARDING_KEY, 'done'); } catch {}
         window.setTimeout(() => window.location.reload(), 80);
       }
     };
     const handleTeamClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       if (!target?.closest('[data-bk-team-skip]')) return;
+      try {
+        localStorage.setItem(TEAM_ONBOARDING_KEY, 'done');
+        localStorage.setItem(TEAM_FAVORITE_KEY, 'NONE');
+      } catch {}
       window.setTimeout(() => {
         document.body.style.background = '#0A0A0A';
         document.documentElement.removeAttribute('data-bk-favorite-team');

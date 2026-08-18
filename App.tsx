@@ -119,60 +119,108 @@ async function hydrate2026CapHits() {
 }
 
 function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
+  const categories = [
+    {
+      icon: Users,
+      eyebrow: 'MAIN MODE',
+      title: 'Fantasy Football',
+      text: 'Run a real league from draft night through the championship.',
+      features: ['Create & Join', 'Draft Room', 'Live Scoring', 'Waivers', 'Trades', 'Playoffs'],
+      featured: true,
+    },
+    {
+      icon: Shield,
+      eyebrow: 'SIGNATURE MODE',
+      title: 'Draft Order Challenge',
+      text: 'Everyone gets the same player pool and cap. Prove who deserves Pick #1.',
+      features: ['$301.2M Cap', 'Same Players', 'Team Build', 'Simulation', 'Earn Your Pick'],
+    },
+    {
+      icon: Play,
+      eyebrow: 'SOLO MODE',
+      title: 'Solo Franchise',
+      text: 'Build 29, manage a full season and see if your roster can win a ring.',
+      features: ['29-Man Roster', 'Salary Cap', 'Injuries', 'Trades', '17 Games', 'Playoffs'],
+    },
+    {
+      icon: DollarSign,
+      eyebrow: 'ODDS LAB',
+      title: 'Sportsbook',
+      text: 'Compare lines and build parlays without placing wagers inside Ball Knower.',
+      features: ['Best Lines', 'Player Props', 'Line Movement', 'Parlay Lab', 'Payout Math'],
+    },
+    {
+      icon: Radio,
+      eyebrow: '24/7 FEED',
+      title: 'NFL Wire',
+      text: 'One clean football news feed built around roster-impacting information.',
+      features: ['Trades', 'Signings', 'Injuries', 'Camp News', 'Roster Moves'],
+    },
+    {
+      icon: Trophy,
+      eyebrow: 'YOUR LEGACY',
+      title: 'Profile & Extras',
+      text: 'Your Ball Knower identity follows you across every mode and league.',
+      features: ['BK Rating', 'League History', 'Achievements', 'Player Headshots', 'Soundtrack'],
+    },
+  ];
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#070707] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.13),transparent_45%)]" />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-8 sm:px-8 lg:px-12">
-        <div className="flex items-center justify-between border-b border-white/10 pb-5">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.14),transparent_42%)]" />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-8 sm:py-8 lg:px-12">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.35em] text-[#D4AF37]">BALL KNOWER</div>
-            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-600">Football Competition & Fantasy Platform</div>
+            <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-600">Fantasy • Football IQ • News • Odds</div>
           </div>
-          <div className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-[#D4AF37]">2026 Season</div>
+          <div className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/5 px-3 py-1.5 text-[9px] font-black uppercase tracking-widest text-[#D4AF37]">2026</div>
         </div>
 
-        <div className="mx-auto mt-10 max-w-4xl text-center sm:mt-14">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-[#D4AF37]">🏈 Prove You Know Ball</div>
-          <h1 className="text-4xl font-black uppercase leading-[0.95] tracking-tight sm:text-6xl lg:text-7xl">
-            Build A Team.<br /><span className="text-[#D4AF37]">Prove It Can Win.</span>
+        <div className="mx-auto mt-8 max-w-4xl text-center sm:mt-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/20 bg-[#D4AF37]/5 px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#D4AF37]">🏈 Everything Football</div>
+          <h1 className="font-display text-5xl font-black uppercase leading-[0.88] tracking-tighter sm:text-7xl lg:text-8xl">
+            ONE APP.<br /><span className="text-[#D4AF37]">EVERY WAY TO KNOW BALL.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-sm font-medium leading-6 text-zinc-400 sm:text-base">
-            Ball Knower starts with football knowledge, then keeps going: compete for draft order, run a real fantasy draft, manage the season, and chase a championship in one place.
+          <p className="mx-auto mt-5 max-w-2xl text-sm font-medium leading-6 text-zinc-400 sm:text-base">
+            Fantasy football, the Ball Knower Challenge, Solo Franchise, NFL news, sportsbook comparisons and your football legacy — all connected in one place.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icon: DollarSign, step: '01', title: 'Prove It', text: 'Build real NFL teams under the cap and compete for draft position.' },
-            { icon: Brain, step: '02', title: 'Draft Smart', text: 'Carry your earned order straight into the real fantasy draft room.' },
-            { icon: CalendarDays, step: '03', title: 'Play Sundays', text: 'Set lineups, score real NFL games and battle every week.' },
-            { icon: Trophy, step: '04', title: 'Win It All', text: 'Survive waivers, trades and playoffs to become league champion.' },
-          ].map(({ icon: Icon, step, title, text }) => (
-            <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10"><Icon className="h-5 w-5 text-[#D4AF37]" /></div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-[#D4AF37]">Step {step}</div>
-              <h3 className="mt-2 text-xl font-black uppercase">{title}</h3>
-              <p className="mt-2 text-xs leading-5 text-zinc-500">{text}</p>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map(({ icon: Icon, eyebrow, title, text, features, featured }) => (
+            <div
+              key={title}
+              className={`rounded-[28px] border p-5 sm:p-6 ${featured ? 'border-[#D4AF37]/55 bg-[#D4AF37]/[0.07] shadow-[0_0_35px_rgba(212,175,55,0.08)]' : 'border-white/10 bg-[#101010]'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border ${featured ? 'border-[#D4AF37]/50 bg-[#D4AF37]/15' : 'border-white/10 bg-white/[0.035]'}`}>
+                  <Icon className="h-5 w-5 text-[#D4AF37]" />
+                </div>
+                <div className={`rounded-full px-3 py-1 text-[8px] font-black uppercase tracking-[0.16em] ${featured ? 'bg-[#D4AF37] text-black' : 'border border-white/10 text-zinc-500'}`}>
+                  {eyebrow}
+                </div>
+              </div>
+
+              <h2 className="mt-5 font-display text-2xl font-black uppercase leading-none tracking-tight text-white">{title}</h2>
+              <p className="mt-2 min-h-[40px] text-xs font-medium leading-5 text-zinc-500">{text}</p>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {features.map(feature => (
+                  <span key={feature} className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-[0.08em] text-zinc-400">
+                    {feature}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="mx-auto mt-7 grid w-full max-w-4xl gap-4 sm:grid-cols-2">
-          <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-[#101010] p-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5"><User className="h-5 w-5 text-[#D4AF37]" /></div>
-            <div><div className="text-sm font-black uppercase">Solo Mode</div><div className="mt-1 text-[11px] text-zinc-500">Draft your own team and see how far you can take it.</div></div>
-          </div>
-          <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-[#101010] p-5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/5"><Users className="h-5 w-5 text-[#D4AF37]" /></div>
-            <div><div className="text-sm font-black uppercase">Full Fantasy</div><div className="mt-1 text-[11px] text-zinc-500">Run the draft, weekly matchups, waivers, trades and playoffs.</div></div>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-8 w-full max-w-xl text-center">
-          <button onClick={onEnter} className="group flex w-full items-center justify-center gap-3 rounded-xl bg-[#D4AF37] px-8 py-5 text-sm font-black uppercase tracking-[0.2em] text-black shadow-[0_0_40px_rgba(212,175,55,0.15)] transition-all hover:scale-[1.01] hover:bg-[#E7C75B]">
+        <div className="mx-auto mt-8 w-full max-w-xl pb-4 text-center">
+          <button onClick={onEnter} className="group flex w-full items-center justify-center gap-3 rounded-full bg-[#D4AF37] px-8 py-5 text-sm font-black uppercase tracking-[0.18em] text-black shadow-[0_0_40px_rgba(212,175,55,0.15)] transition-all hover:scale-[1.01] hover:bg-[#E7C75B]">
             Enter Ball Knower <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
           </button>
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-600">Ball Knower competition + full fantasy football, all in one place.</p>
+          <p className="mt-3 text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-600">Pick a mode. Build your legacy. Prove you know ball.</p>
         </div>
       </div>
     </div>

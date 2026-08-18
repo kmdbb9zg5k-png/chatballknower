@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useBallKnower } from '../context/BallKnowerContext';
 import {
   Trophy,
@@ -14,8 +14,8 @@ import {
   Newspaper,
   TrendingUp,
   X,
-  Calculator,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 import { SoundtrackControl } from './SoundtrackControl';
 
@@ -29,27 +29,44 @@ interface NavbarProps {
   onOpenDatabaseModal?: () => void;
 }
 
-type DemoBook = 'FanDuel' | 'DraftKings' | 'BetMGM' | 'Caesars';
-type DemoSport = 'NFL' | 'NBA' | 'MLB' | 'NHL';
-type DemoLine = {
+type Book = 'FanDuel' | 'DraftKings' | 'BetMGM' | 'Caesars';
+type Sport = 'NFL' | 'NBA' | 'MLB' | 'NHL';
+type MarketLine = {
   id: string;
-  sport: DemoSport;
+  sport: Sport;
   game: string;
   start: string;
   label: string;
   market: string;
-  prices: Record<DemoBook, number>;
+  prices: Record<Book, number>;
   move: string;
 };
 
-const SPORTSBOOKS: DemoBook[] = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars'];
-const SPORTSBOOK_URLS: Record<DemoBook, string> = {
-  FanDuel: 'https://sportsbook.fanduel.com/',
-  DraftKings: 'https://sportsbook.draftkings.com/',
-  BetMGM: 'https://sports.betmgm.com/en/sports',
-  Caesars: 'https://sportsbook.caesars.com/',
+const SPORTSBOOKS: Book[] = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars'];
+const BOOK_INFO: Record<Book, { url: string; logo: string; short: string }> = {
+  FanDuel: {
+    url: 'https://sportsbook.fanduel.com/',
+    logo: 'https://www.google.com/s2/favicons?domain=fanduel.com&sz=128',
+    short: 'FD',
+  },
+  DraftKings: {
+    url: 'https://sportsbook.draftkings.com/',
+    logo: 'https://www.google.com/s2/favicons?domain=draftkings.com&sz=128',
+    short: 'DK',
+  },
+  BetMGM: {
+    url: 'https://sports.betmgm.com/en/sports',
+    logo: 'https://www.google.com/s2/favicons?domain=betmgm.com&sz=128',
+    short: 'MGM',
+  },
+  Caesars: {
+    url: 'https://sportsbook.caesars.com/',
+    logo: 'https://www.google.com/s2/favicons?domain=caesars.com&sz=128',
+    short: 'CZR',
+  },
 };
-const DEMO_LINES: DemoLine[] = [
+
+const MARKET_LINES: MarketLine[] = [
   { id:'phi-spread', sport:'NFL', game:'Dallas Cowboys @ Philadelphia Eagles', start:'Thu • 8:20 PM', label:'Philadelphia Eagles -2.5', market:'Spread', prices:{FanDuel:-105,DraftKings:-110,BetMGM:-108,Caesars:-110}, move:'-2 → -2.5' },
   { id:'phi-total', sport:'NFL', game:'Dallas Cowboys @ Philadelphia Eagles', start:'Thu • 8:20 PM', label:'Over 47.5', market:'Total', prices:{FanDuel:-110,DraftKings:-105,BetMGM:-110,Caesars:-108}, move:'46.5 → 47.5' },
   { id:'saquon-rush', sport:'NFL', game:'Dallas Cowboys @ Philadelphia Eagles', start:'Thu • 8:20 PM', label:'Saquon Barkley 80+ Rush Yards', market:'Player Prop', prices:{FanDuel:118,DraftKings:125,BetMGM:115,Caesars:120}, move:'+110 → +125' },
@@ -64,41 +81,69 @@ function americanToDecimal(odds: number) {
   return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
 }
 
-function decimalToAmerican(decimal: number) {
-  if (decimal >= 2) return Math.round((decimal - 1) * 100);
-  return Math.round(-100 / Math.max(0.01, decimal - 1));
-}
-
 function showOdds(odds: number) {
   return odds > 0 ? `+${odds}` : String(odds);
 }
 
-function SportsbookPage({ onClose }: { onClose: () => void }) {
-  const [sport, setSport] = useState<DemoSport>('NFL');
-  const [parlay, setParlay] = useState<string[]>([]);
-  const [stake, setStake] = useState('10');
-  const visible = DEMO_LINES.filter(x => x.sport === sport);
-  const selected = DEMO_LINES.filter(x => parlay.includes(x.id));
+function normalizeBet(value: string) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/philadelphia/g, 'eagles')
+    .replace(/kansas city/g, 'chiefs')
+    .replace(/buffalo/g, 'bills')
+    .replace(/dallas/g, 'cowboys')
+    .replace(/passing/g, 'pass')
+    .replace(/rushing/g, 'rush')
+    .replace(/receiving/g, 'rec')
+    .replace(/yards?/g, 'yd')
+    .replace(/money\s*line/g, 'ml')
+    .replace(/[^a-z0-9+.-]+/g, ' ')
+    .trim();
+}
 
-  const bestBookForLine = (line: DemoLine) => SPORTSBOOKS.reduce((best, book) =>
+function bestBookForLine(line: MarketLine) {
+  return SPORTSBOOKS.reduce((best, book) =>
     americanToDecimal(line.prices[book]) > americanToDecimal(line.prices[best]) ? book : best
   , SPORTSBOOKS[0]);
+}
 
-  const parlayByBook = SPORTSBOOKS.map(book => {
-    const decimal = selected.length ? selected.reduce((acc, line) => acc * americanToDecimal(line.prices[book]), 1) : 1;
-    return { book, decimal, american: selected.length ? decimalToAmerican(decimal) : 0 };
-  }).sort((a,b) => b.decimal - a.decimal);
+function scoreMarket(line: MarketLine, query: string) {
+  const q = normalizeBet(query);
+  if (!q) return 0;
+  const haystack = normalizeBet(`${line.label} ${line.game} ${line.market} ${line.sport}`);
+  const tokens = q.split(' ').filter(token => token.length > 1 && !['the','a','an','to','for','at','on','over'].includes(token));
+  let score = 0;
+  for (const token of tokens) {
+    if (haystack.includes(token)) score += token.length >= 4 ? 3 : 2;
+  }
+  if (haystack.includes(q)) score += 10;
+  return score;
+}
 
-  const bestParlay = parlayByBook[0];
-  const stakeNum = Math.max(0, Number(stake) || 0);
-  const payout = selected.length ? stakeNum * bestParlay.decimal : 0;
+function BookLogo({ book, size = 'md' }: { book: Book; size?: 'sm' | 'md' | 'lg' }) {
+  const info = BOOK_INFO[book];
+  const box = size === 'lg' ? 'h-14 w-14' : size === 'sm' ? 'h-8 w-8' : 'h-11 w-11';
+  return (
+    <div className={`${box} flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white p-1.5`}>
+      <img src={info.logo} alt={`${book} logo`} className="h-full w-full object-contain" loading="lazy" />
+    </div>
+  );
+}
 
-  const theoreticalDecimal = selected.length
-    ? selected.reduce((acc, line) => {
-        const best = SPORTSBOOKS.reduce((bookA, bookB) => americanToDecimal(line.prices[bookB]) > americanToDecimal(line.prices[bookA]) ? bookB : bookA, SPORTSBOOKS[0]);
-        return acc * americanToDecimal(line.prices[best]);
-      }, 1)
-    : 1;
+function SportsbookPage({ onClose }: { onClose: () => void }) {
+  const [sport, setSport] = useState<Sport>('NFL');
+  const [query, setQuery] = useState('');
+
+  const matches = useMemo(() => {
+    if (!query.trim()) return MARKET_LINES.filter(line => line.sport === sport);
+    return MARKET_LINES
+      .map(line => ({ line, score: scoreMarket(line, query) }))
+      .filter(result => result.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(result => result.line);
+  }, [query, sport]);
+
+  const primary = query.trim() ? matches[0] : null;
 
   return (
     <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#090909] text-white">
@@ -114,62 +159,117 @@ function SportsbookPage({ onClose }: { onClose: () => void }) {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8">
         <section className="border border-[#D4AF37]/30 bg-[#111] p-5 sm:p-7">
-          <div>
-            <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-[#D4AF37]"><TrendingUp className="h-4 w-4" /> Best Line Finder</div>
-            <h3 className="mt-2 font-display text-4xl font-black uppercase leading-[.9] sm:text-6xl">SHOP THE LINE.<br/><span className="text-[#D4AF37]">BUILD IT SMARTER.</span></h3>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">Compare the same market across sportsbooks, then build a parlay and see which single sportsbook would offer the best combined price.</p>
+          <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-[#D4AF37]"><Search className="h-4 w-4" /> Best Odds Finder</div>
+          <h3 className="mt-2 font-display text-4xl font-black uppercase leading-[.9] sm:text-6xl">TYPE THE BET.<br/><span className="text-[#D4AF37]">FIND THE BEST PRICE.</span></h3>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">Search a team, spread, total or player prop. Ball Knower compares the matching market across sportsbooks and highlights the best odds.</p>
+
+          <div className="mt-5 flex items-center gap-3 border border-white/15 bg-[#090909] px-4 py-1 focus-within:border-[#D4AF37]/70">
+            <Search className="h-5 w-5 shrink-0 text-[#D4AF37]" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Try: Josh Allen 250 pass yards"
+              className="min-w-0 flex-1 bg-transparent py-4 text-base font-bold text-white outline-none placeholder:text-zinc-600"
+            />
+            {query && <button onClick={() => setQuery('')} className="text-zinc-600 hover:text-white"><X className="h-4 w-4" /></button>}
           </div>
+          <div className="mt-2 text-[9px] font-bold uppercase tracking-wider text-zinc-600">Examples: Eagles -2.5 • Chiefs ML • Saquon 80 rush yards</div>
         </section>
 
-        <div className="mt-5 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {(['NFL','NBA','MLB','NHL'] as DemoSport[]).map(s => <button key={s} onClick={() => setSport(s)} className={`min-w-[76px] border px-4 py-3 text-xs font-black uppercase ${sport===s?'border-[#D4AF37] bg-[#D4AF37] text-black':'border-white/10 bg-[#151515] text-zinc-400'}`}>{s}</button>)}
-        </div>
-
-        <section className="mt-4">
-          <div className="mb-2 text-[9px] font-black uppercase tracking-[.2em] text-zinc-500">Open Sportsbook</div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <section className="mt-5">
+          <div className="mb-2 text-[9px] font-black uppercase tracking-[.2em] text-zinc-500">Sportsbooks</div>
+          <div className="grid grid-cols-4 gap-2">
             {SPORTSBOOKS.map(book => (
-              <a key={book} href={SPORTSBOOK_URLS[book]} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 border border-white/10 bg-[#141414] px-3 py-3 text-xs font-black hover:border-[#D4AF37]/60 hover:text-[#D4AF37]">
-                <span>{book}</span><ExternalLink className="h-3.5 w-3.5" />
+              <a key={book} href={BOOK_INFO[book].url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-white/10 bg-[#131313] p-3 text-center transition hover:border-[#D4AF37]/50">
+                <BookLogo book={book} />
+                <span className="max-w-full truncate text-[9px] font-black text-zinc-300">{book}</span>
               </a>
             ))}
           </div>
         </section>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
-          <section>
-            <div className="mb-3 flex items-end justify-between"><div><div className="text-[9px] font-black uppercase tracking-[.22em] text-[#D4AF37]">Market Board</div><h3 className="font-display text-2xl font-black uppercase">BEST AVAILABLE ODDS</h3></div><div className="text-[9px] font-bold uppercase text-zinc-600">Tap any book to open</div></div>
-            <div className="space-y-3">
-              {visible.map(line => {
-                const best = bestBookForLine(line);
-                const inParlay = parlay.includes(line.id);
-                return <div key={line.id} className="border border-white/10 bg-[#121212] p-4">
-                  <div className="flex items-start justify-between gap-3"><div><div className="text-[9px] font-black uppercase tracking-wider text-zinc-600">{line.game} • {line.start}</div><div className="mt-1 text-lg font-black">{line.label}</div><div className="mt-1 text-xs text-zinc-500">{line.market} • Movement {line.move}</div></div><button onClick={() => setParlay(p => p.includes(line.id) ? p.filter(id=>id!==line.id) : [...p,line.id])} className={`shrink-0 border px-3 py-2 text-[10px] font-black uppercase ${inParlay?'border-green-500 bg-green-500/10 text-green-400':'border-[#D4AF37]/40 text-[#D4AF37]'}`}>{inParlay?'Added':'Add to Parlay'}</button></div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{SPORTSBOOKS.map(book => <a key={book} href={SPORTSBOOK_URLS[book]} target="_blank" rel="noopener noreferrer" className={`relative block border p-3 transition-colors ${book===best?'border-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/15':'border-white/5 bg-[#0c0c0c] hover:border-white/20'}`}><div className="flex items-center gap-1 text-[9px] font-black text-zinc-500">{book}<ExternalLink className="h-2.5 w-2.5" /></div><div className={`mt-1 text-xl font-black ${book===best?'text-[#D4AF37]':'text-white'}`}>{showOdds(line.prices[book])}</div>{book===best&&<span className="absolute right-2 top-2 bg-[#D4AF37] px-1.5 py-0.5 text-[7px] font-black text-black">BEST</span>}</a>)}</div>
-                </div>
-              })}
-            </div>
-          </section>
-
-          <aside className="h-fit border border-[#D4AF37]/30 bg-[#111] p-5 xl:sticky xl:top-24">
-            <div className="flex items-center gap-2 text-[#D4AF37]"><Calculator className="h-4 w-4"/><span className="text-[10px] font-black uppercase tracking-[.2em]">Parlay Lab</span></div>
-            <h3 className="mt-2 font-display text-3xl font-black uppercase">{selected.length} LEG{selected.length===1?'':'S'}</h3>
-            {selected.length===0 ? <div className="mt-4 border border-dashed border-white/10 p-6 text-center text-sm text-zinc-600">Tap “Add to Parlay” on any market.</div> : <div className="mt-4 space-y-2">{selected.map(line=><div key={line.id} className="flex items-start justify-between gap-3 border border-white/5 bg-[#0d0d0d] p-3"><div><div className="text-xs font-bold">{line.label}</div><div className="mt-1 text-[9px] text-zinc-600">{line.game}</div></div><button onClick={()=>setParlay(p=>p.filter(id=>id!==line.id))} className="text-zinc-600 hover:text-white"><X className="h-4 w-4"/></button></div>)}</div>}
-
-            {selected.length>0 && <>
-              <div className="mt-5 text-[9px] font-black uppercase tracking-widest text-zinc-500">Same parlay at each book</div>
-              <div className="mt-2 space-y-2">{parlayByBook.map((r,i)=><a key={r.book} href={SPORTSBOOK_URLS[r.book]} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-between border p-3 ${i===0?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5'}`}><div><div className="flex items-center gap-1 text-xs font-black">{r.book}<ExternalLink className="h-3 w-3" /></div>{i===0&&<div className="text-[8px] font-black uppercase text-[#D4AF37]">Best one-book price</div>}</div><div className="text-lg font-black">{showOdds(r.american)}</div></a>)}</div>
-
-              <div className="mt-5 border-t border-white/10 pt-4"><label className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Stake</label><div className="mt-2 flex items-center border border-white/10 bg-[#0c0c0c] px-3"><span className="text-zinc-600">$</span><input value={stake} onChange={e=>setStake(e.target.value)} inputMode="decimal" className="w-full bg-transparent p-3 font-black outline-none"/></div><div className="mt-3 grid grid-cols-2 gap-2"><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Best Odds</div><div className="mt-1 text-xl font-black text-[#D4AF37]">{showOdds(bestParlay.american)}</div></div><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Projected Return</div><div className="mt-1 text-xl font-black">${payout.toFixed(2)}</div></div></div></div>
-
-              <div className="mt-4 border border-blue-500/20 bg-blue-500/5 p-3 text-[10px] leading-4 text-zinc-400"><b className="text-blue-300">THEORETICAL BEST INDIVIDUAL LINES:</b> {showOdds(decimalToAmerican(theoreticalDecimal))}. This combines the best leg from different books and is <b>not</b> one single-book parlay.</div>
-
-              <a href={SPORTSBOOK_URLS[bestParlay.book]} target="_blank" rel="noopener noreferrer" className="mt-5 flex w-full items-center justify-center gap-2 bg-[#D4AF37] py-4 text-xs font-black uppercase text-black hover:bg-[#E7C75B]">Open {bestParlay.book}<ExternalLink className="h-4 w-4" /></a>
-            </>}
-          </aside>
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {(['NFL','NBA','MLB','NHL'] as Sport[]).map(s => <button key={s} onClick={() => { setSport(s); if (!query.trim()) setQuery(''); }} className={`min-w-[76px] border px-4 py-3 text-xs font-black uppercase ${sport===s?'border-[#D4AF37] bg-[#D4AF37] text-black':'border-white/10 bg-[#151515] text-zinc-400'}`}>{s}</button>)}
         </div>
 
-        <div className="mt-7 border border-white/10 bg-[#101010] p-4 text-[10px] leading-5 text-zinc-500"><b className="text-white">BALL KNOWER SPORTSBOOK:</b> Live odds feed connection is coming next. Prices shown in Ball Knower are comparison placeholders for now; tap a sportsbook to verify the current line on its official site. Availability varies by location.</div>
+        {query.trim() && primary ? (
+          <section className="mt-6 border border-[#D4AF37]/40 bg-[#111] p-5 sm:p-6">
+            <div className="text-[9px] font-black uppercase tracking-[.22em] text-green-400">Best Match</div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-zinc-600">{primary.sport} • {primary.game} • {primary.start}</div>
+                <h3 className="mt-1 font-display text-3xl font-black uppercase sm:text-4xl">{primary.label}</h3>
+                <div className="mt-1 text-xs text-zinc-500">{primary.market} • Movement {primary.move}</div>
+              </div>
+              <div className="text-[10px] font-black uppercase text-zinc-600">Tap a book to open</div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {SPORTSBOOKS.map(book => {
+                const best = bestBookForLine(primary);
+                return (
+                  <a key={book} href={BOOK_INFO[book].url} target="_blank" rel="noopener noreferrer" className={`relative flex items-center gap-3 border p-3 ${book===best?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5 bg-[#0c0c0c]'}`}>
+                    <BookLogo book={book} size="sm" />
+                    <div className="min-w-0">
+                      <div className="truncate text-[9px] font-black text-zinc-500">{book}</div>
+                      <div className={`mt-0.5 text-xl font-black ${book===best?'text-[#D4AF37]':'text-white'}`}>{showOdds(primary.prices[book])}</div>
+                    </div>
+                    {book===best && <span className="absolute right-2 top-2 bg-[#D4AF37] px-1.5 py-0.5 text-[7px] font-black text-black">BEST</span>}
+                  </a>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[#D4AF37]/20 bg-black/20 p-4">
+              <div className="flex items-center gap-3">
+                <BookLogo book={bestBookForLine(primary)} size="lg" />
+                <div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Best Available</div>
+                  <div className="text-lg font-black">{bestBookForLine(primary)}</div>
+                  <div className="text-2xl font-black text-[#D4AF37]">{showOdds(primary.prices[bestBookForLine(primary)])}</div>
+                </div>
+              </div>
+              <a href={BOOK_INFO[bestBookForLine(primary)].url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${bestBookForLine(primary)}`} className="flex h-12 w-12 items-center justify-center rounded-full bg-[#D4AF37] text-black"><ExternalLink className="h-5 w-5" /></a>
+            </div>
+          </section>
+        ) : query.trim() ? (
+          <section className="mt-6 border border-dashed border-white/10 bg-[#111] p-8 text-center">
+            <Search className="mx-auto h-8 w-8 text-zinc-700" />
+            <h3 className="mt-3 text-xl font-black">No matching market yet.</h3>
+            <p className="mt-1 text-sm text-zinc-500">Try a team, player, spread, total or moneyline from the markets currently loaded.</p>
+          </section>
+        ) : null}
+
+        <section className="mt-7">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div><div className="text-[9px] font-black uppercase tracking-[.22em] text-[#D4AF37]">Market Board</div><h3 className="font-display text-2xl font-black uppercase">{query.trim() ? 'MORE MATCHES' : `${sport} MARKETS`}</h3></div>
+            <div className="text-[9px] font-bold uppercase text-zinc-600">Best book highlighted</div>
+          </div>
+
+          <div className="space-y-3">
+            {(query.trim() ? matches.filter(line => line.id !== primary?.id) : matches).map(line => {
+              const best = bestBookForLine(line);
+              return (
+                <div key={line.id} className="border border-white/10 bg-[#121212] p-4">
+                  <div className="text-[9px] font-black uppercase tracking-wider text-zinc-600">{line.game} • {line.start}</div>
+                  <div className="mt-1 text-lg font-black">{line.label}</div>
+                  <div className="mt-1 text-xs text-zinc-500">{line.market} • Movement {line.move}</div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {SPORTSBOOKS.map(book => (
+                      <a key={book} href={BOOK_INFO[book].url} target="_blank" rel="noopener noreferrer" className={`relative flex items-center gap-2 border p-3 ${book===best?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5 bg-[#0c0c0c]'}`}>
+                        <BookLogo book={book} size="sm" />
+                        <div><div className="text-[8px] font-black text-zinc-500">{book}</div><div className={`text-lg font-black ${book===best?'text-[#D4AF37]':'text-white'}`}>{showOdds(line.prices[book])}</div></div>
+                        {book===best && <span className="absolute right-2 top-2 bg-[#D4AF37] px-1 py-0.5 text-[6px] font-black text-black">BEST</span>}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="mt-7 border border-white/10 bg-[#101010] p-4 text-[10px] leading-5 text-zinc-500"><b className="text-white">BALL KNOWER ODDS:</b> The live odds feed is the next connection. Prices currently shown are comparison placeholders; tap any sportsbook logo to verify the current line on its official site. Availability varies by location.</div>
       </main>
     </div>
   );

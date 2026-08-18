@@ -15,6 +15,7 @@ import {
   TrendingUp,
   X,
   Calculator,
+  ExternalLink,
 } from 'lucide-react';
 import { SoundtrackControl } from './SoundtrackControl';
 
@@ -42,6 +43,12 @@ type DemoLine = {
 };
 
 const SPORTSBOOKS: DemoBook[] = ['FanDuel', 'DraftKings', 'BetMGM', 'Caesars'];
+const SPORTSBOOK_URLS: Record<DemoBook, string> = {
+  FanDuel: 'https://sportsbook.fanduel.com/',
+  DraftKings: 'https://sportsbook.draftkings.com/',
+  BetMGM: 'https://sports.betmgm.com/en/sports',
+  Caesars: 'https://sportsbook.caesars.com/',
+};
 const DEMO_LINES: DemoLine[] = [
   { id:'phi-spread', sport:'NFL', game:'Dallas Cowboys @ Philadelphia Eagles', start:'Thu • 8:20 PM', label:'Philadelphia Eagles -2.5', market:'Spread', prices:{FanDuel:-105,DraftKings:-110,BetMGM:-108,Caesars:-110}, move:'-2 → -2.5' },
   { id:'phi-total', sport:'NFL', game:'Dallas Cowboys @ Philadelphia Eagles', start:'Thu • 8:20 PM', label:'Over 47.5', market:'Total', prices:{FanDuel:-110,DraftKings:-105,BetMGM:-110,Caesars:-108}, move:'46.5 → 47.5' },
@@ -107,13 +114,10 @@ function SportsbookPage({ onClose }: { onClose: () => void }) {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-8">
         <section className="border border-[#D4AF37]/30 bg-[#111] p-5 sm:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-[#D4AF37]"><TrendingUp className="h-4 w-4" /> Best Line Finder</div>
-              <h3 className="mt-2 font-display text-4xl font-black uppercase leading-[.9] sm:text-6xl">SHOP THE LINE.<br/><span className="text-[#D4AF37]">BUILD IT SMARTER.</span></h3>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">Compare the same market across sportsbooks, then build a parlay and see which single sportsbook would offer the best combined price.</p>
-            </div>
-            <div className="border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-amber-300">DEMO DATA • NO WAGERS ACCEPTED</div>
+          <div>
+            <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-[#D4AF37]"><TrendingUp className="h-4 w-4" /> Best Line Finder</div>
+            <h3 className="mt-2 font-display text-4xl font-black uppercase leading-[.9] sm:text-6xl">SHOP THE LINE.<br/><span className="text-[#D4AF37]">BUILD IT SMARTER.</span></h3>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">Compare the same market across sportsbooks, then build a parlay and see which single sportsbook would offer the best combined price.</p>
           </div>
         </section>
 
@@ -121,16 +125,27 @@ function SportsbookPage({ onClose }: { onClose: () => void }) {
           {(['NFL','NBA','MLB','NHL'] as DemoSport[]).map(s => <button key={s} onClick={() => setSport(s)} className={`min-w-[76px] border px-4 py-3 text-xs font-black uppercase ${sport===s?'border-[#D4AF37] bg-[#D4AF37] text-black':'border-white/10 bg-[#151515] text-zinc-400'}`}>{s}</button>)}
         </div>
 
+        <section className="mt-4">
+          <div className="mb-2 text-[9px] font-black uppercase tracking-[.2em] text-zinc-500">Open Sportsbook</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {SPORTSBOOKS.map(book => (
+              <a key={book} href={SPORTSBOOK_URLS[book]} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 border border-white/10 bg-[#141414] px-3 py-3 text-xs font-black hover:border-[#D4AF37]/60 hover:text-[#D4AF37]">
+                <span>{book}</span><ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ))}
+          </div>
+        </section>
+
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
           <section>
-            <div className="mb-3 flex items-end justify-between"><div><div className="text-[9px] font-black uppercase tracking-[.22em] text-[#D4AF37]">Market Board</div><h3 className="font-display text-2xl font-black uppercase">BEST AVAILABLE ODDS</h3></div><div className="text-[9px] font-bold uppercase text-zinc-600">Demo refreshed now</div></div>
+            <div className="mb-3 flex items-end justify-between"><div><div className="text-[9px] font-black uppercase tracking-[.22em] text-[#D4AF37]">Market Board</div><h3 className="font-display text-2xl font-black uppercase">BEST AVAILABLE ODDS</h3></div><div className="text-[9px] font-bold uppercase text-zinc-600">Tap any book to open</div></div>
             <div className="space-y-3">
               {visible.map(line => {
                 const best = bestBookForLine(line);
                 const inParlay = parlay.includes(line.id);
                 return <div key={line.id} className="border border-white/10 bg-[#121212] p-4">
                   <div className="flex items-start justify-between gap-3"><div><div className="text-[9px] font-black uppercase tracking-wider text-zinc-600">{line.game} • {line.start}</div><div className="mt-1 text-lg font-black">{line.label}</div><div className="mt-1 text-xs text-zinc-500">{line.market} • Movement {line.move}</div></div><button onClick={() => setParlay(p => p.includes(line.id) ? p.filter(id=>id!==line.id) : [...p,line.id])} className={`shrink-0 border px-3 py-2 text-[10px] font-black uppercase ${inParlay?'border-green-500 bg-green-500/10 text-green-400':'border-[#D4AF37]/40 text-[#D4AF37]'}`}>{inParlay?'Added':'Add to Parlay'}</button></div>
-                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{SPORTSBOOKS.map(book => <div key={book} className={`relative border p-3 ${book===best?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5 bg-[#0c0c0c]'}`}><div className="text-[9px] font-black text-zinc-500">{book}</div><div className={`mt-1 text-xl font-black ${book===best?'text-[#D4AF37]':'text-white'}`}>{showOdds(line.prices[book])}</div>{book===best&&<span className="absolute right-2 top-2 bg-[#D4AF37] px-1.5 py-0.5 text-[7px] font-black text-black">BEST</span>}</div>)}</div>
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{SPORTSBOOKS.map(book => <a key={book} href={SPORTSBOOK_URLS[book]} target="_blank" rel="noopener noreferrer" className={`relative block border p-3 transition-colors ${book===best?'border-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/15':'border-white/5 bg-[#0c0c0c] hover:border-white/20'}`}><div className="flex items-center gap-1 text-[9px] font-black text-zinc-500">{book}<ExternalLink className="h-2.5 w-2.5" /></div><div className={`mt-1 text-xl font-black ${book===best?'text-[#D4AF37]':'text-white'}`}>{showOdds(line.prices[book])}</div>{book===best&&<span className="absolute right-2 top-2 bg-[#D4AF37] px-1.5 py-0.5 text-[7px] font-black text-black">BEST</span>}</a>)}</div>
                 </div>
               })}
             </div>
@@ -143,18 +158,18 @@ function SportsbookPage({ onClose }: { onClose: () => void }) {
 
             {selected.length>0 && <>
               <div className="mt-5 text-[9px] font-black uppercase tracking-widest text-zinc-500">Same parlay at each book</div>
-              <div className="mt-2 space-y-2">{parlayByBook.map((r,i)=><div key={r.book} className={`flex items-center justify-between border p-3 ${i===0?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5'}`}><div><div className="text-xs font-black">{r.book}</div>{i===0&&<div className="text-[8px] font-black uppercase text-[#D4AF37]">Best one-book price</div>}</div><div className="text-lg font-black">{showOdds(r.american)}</div></div>)}</div>
+              <div className="mt-2 space-y-2">{parlayByBook.map((r,i)=><a key={r.book} href={SPORTSBOOK_URLS[r.book]} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-between border p-3 ${i===0?'border-[#D4AF37] bg-[#D4AF37]/10':'border-white/5'}`}><div><div className="flex items-center gap-1 text-xs font-black">{r.book}<ExternalLink className="h-3 w-3" /></div>{i===0&&<div className="text-[8px] font-black uppercase text-[#D4AF37]">Best one-book price</div>}</div><div className="text-lg font-black">{showOdds(r.american)}</div></a>)}</div>
 
-              <div className="mt-5 border-t border-white/10 pt-4"><label className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Example stake</label><div className="mt-2 flex items-center border border-white/10 bg-[#0c0c0c] px-3"><span className="text-zinc-600">$</span><input value={stake} onChange={e=>setStake(e.target.value)} inputMode="decimal" className="w-full bg-transparent p-3 font-black outline-none"/></div><div className="mt-3 grid grid-cols-2 gap-2"><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Best Odds</div><div className="mt-1 text-xl font-black text-[#D4AF37]">{showOdds(bestParlay.american)}</div></div><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Example Return</div><div className="mt-1 text-xl font-black">${payout.toFixed(2)}</div></div></div></div>
+              <div className="mt-5 border-t border-white/10 pt-4"><label className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Stake</label><div className="mt-2 flex items-center border border-white/10 bg-[#0c0c0c] px-3"><span className="text-zinc-600">$</span><input value={stake} onChange={e=>setStake(e.target.value)} inputMode="decimal" className="w-full bg-transparent p-3 font-black outline-none"/></div><div className="mt-3 grid grid-cols-2 gap-2"><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Best Odds</div><div className="mt-1 text-xl font-black text-[#D4AF37]">{showOdds(bestParlay.american)}</div></div><div className="border border-white/5 bg-[#0c0c0c] p-3"><div className="text-[8px] font-black uppercase text-zinc-600">Projected Return</div><div className="mt-1 text-xl font-black">${payout.toFixed(2)}</div></div></div></div>
 
-              <div className="mt-4 border border-blue-500/20 bg-blue-500/5 p-3 text-[10px] leading-4 text-zinc-400"><b className="text-blue-300">THEORETICAL BEST INDIVIDUAL LINES:</b> {showOdds(decimalToAmerican(theoreticalDecimal))}. This combines the best leg from different books and is <b>not</b> one playable parlay.</div>
+              <div className="mt-4 border border-blue-500/20 bg-blue-500/5 p-3 text-[10px] leading-4 text-zinc-400"><b className="text-blue-300">THEORETICAL BEST INDIVIDUAL LINES:</b> {showOdds(decimalToAmerican(theoreticalDecimal))}. This combines the best leg from different books and is <b>not</b> one single-book parlay.</div>
+
+              <a href={SPORTSBOOK_URLS[bestParlay.book]} target="_blank" rel="noopener noreferrer" className="mt-5 flex w-full items-center justify-center gap-2 bg-[#D4AF37] py-4 text-xs font-black uppercase text-black hover:bg-[#E7C75B]">Open {bestParlay.book}<ExternalLink className="h-4 w-4" /></a>
             </>}
-
-            <button disabled className="mt-5 w-full border border-white/10 bg-[#171717] py-4 text-xs font-black uppercase text-zinc-600">Sportsbook links unlock with live licensed feed</button>
           </aside>
         </div>
 
-        <div className="mt-7 border border-white/10 bg-[#101010] p-4 text-[10px] leading-5 text-zinc-500"><b className="text-white">BALL KNOWER SPORTSBOOK:</b> Information and comparison only. Ball Knower does not accept wagers. Demo prices are fictional placeholders until a licensed odds provider is connected.</div>
+        <div className="mt-7 border border-white/10 bg-[#101010] p-4 text-[10px] leading-5 text-zinc-500"><b className="text-white">BALL KNOWER SPORTSBOOK:</b> Live odds feed connection is coming next. Prices shown in Ball Knower are comparison placeholders for now; tap a sportsbook to verify the current line on its official site. Availability varies by location.</div>
       </main>
     </div>
   );
@@ -229,7 +244,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <nav className="flex h-11 items-center border-b border-white/5 bg-[#1A1A1A] px-4 sm:h-12 sm:px-8"><div className="flex h-full items-center gap-4 overflow-x-auto no-scrollbar sm:gap-8">
           <button id="nav-tab-home" onClick={() => setCurrentTab('home')} className={tabClass(currentTab === 'home')}>Overview</button>
           <button id="nav-tab-fantasy" onClick={() => setCurrentTab('fantasy')} className={tabClass(currentTab === 'fantasy')}><Users className="h-3.5 w-3.5" /><span>Fantasy</span><span className="bg-[#D4AF37] px-1 py-0.5 text-[7px] leading-none text-black">MAIN</span></button>
-          <button id="nav-tab-sportsbook" onClick={() => setIsSportsbookOpen(true)} className={tabClass(isSportsbookOpen)}><TrendingUp className="h-3.5 w-3.5" /><span>Sportsbook</span><span className="border border-green-500/40 bg-green-500/10 px-1 py-0.5 text-[7px] leading-none text-green-400">DEMO</span></button>
+          <button id="nav-tab-sportsbook" onClick={() => setIsSportsbookOpen(true)} className={tabClass(isSportsbookOpen)}><TrendingUp className="h-3.5 w-3.5" /><span>Sportsbook</span></button>
           <button id="nav-tab-solo-mobile" onClick={() => setCurrentTab('solo')} className={tabClass(currentTab === 'solo')}><Play className="h-3.5 w-3.5" /> Solo</button>
           <button id="nav-tab-news" onClick={() => setCurrentTab('news')} className={tabClass(currentTab === 'news')}><Newspaper className="h-3.5 w-3.5" /> News<span className="h-1.5 w-1.5 rounded-full bg-green-400" /></button>
           <button id="nav-tab-profile" onClick={() => setCurrentTab('legacy')} className={tabClass(currentTab === 'legacy')}><Trophy className="h-3.5 w-3.5" /> Profile</button>

@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import {NFL_TEAMS, PLAYERS_DATABASE} from './players';
+import {fantasyRequest} from './supabase';
 import './index.css';
 
 const ROSTER_URL='https://gpnboygoosrmeydwjpvk.supabase.co/functions/v1/nfl-roster-map?key=ballknower-roster-v1';
@@ -352,6 +353,101 @@ async function syncCurrentTeams(){
   }
 }
 
+type FantasyLeagueDraftState={
+  code?:string;
+  fantasy_members?:any[];
+  fantasy_draft?:{
+    status?:string;
+    current_pick?:number;
+    current_round?:number;
+    current_member_id?:string|null;
+    scheduled_at?:string|null;
+    started_at?:string|null;
+    completed_at?:string|null;
+  }|null;
+};
+
+let fantasyDraftLeagueCache:FantasyLeagueDraftState[]=[];
+let fantasyDraftRefreshBusy=false;
+
+function normalizeFantasyCode(value:string){return String(value||'').trim().toUpperCase();}
+function fantasyDraftIsLive(draft:FantasyLeagueDraftState['fantasy_draft']){
+  if(!draft||draft.completed_at||['complete','completed'].includes(String(draft.status||'')))return false;
+  if(['in_progress','drafting'].includes(String(draft.status||''))||draft.started_at)return true;
+  if(!draft.scheduled_at)return false;
+  const scheduled=new Date(draft.scheduled_at).getTime();
+  return Number.isFinite(scheduled)&&scheduled<=Date.now();
+}
+function fantasyDraftTime(value?:string|null){
+  if(!value)return'';
+  const d=new Date(value);if(!Number.isFinite(d.getTime()))return'';
+  return d.toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+function fantasyDraftOnClockName(league:FantasyLeagueDraftState){
+  const id=league.fantasy_draft?.current_member_id;if(!id)return'';
+  const member=(league.fantasy_members||[]).find((m:any)=>String(m?.id)===String(id));
+  return String(member?.display_name||member?.team_name||'').trim();
+}
+function installFantasyDraftCardStyles(){
+  if(document.getElementById('bk-live-draft-card-style'))return;
+  const style=document.createElement('style');style.id='bk-live-draft-card-style';
+  style.textContent='@keyframes bkDraftPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.82)}}@keyframes bkDraftGlow{0%,100%{box-shadow:0 0 0 rgba(34,197,94,0)}50%{box-shadow:0 0 30px rgba(34,197,94,.14)}}[data-bk-draft-live="1"]{animation:bkDraftGlow 2.2s ease-in-out infinite}.bk-draft-live-dot{animation:bkDraftPulse 1.15s ease-in-out infinite}';
+  document.head.appendChild(style);
+}
+function fantasyLeagueCards(){
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('button')).filter(button=>{
+    const text=String(button.textContent||'');
+    return /BKF-[A-Z0-9]{5}/i.test(text)&&/Open League HQ/i.test(text);
+  });
+}
+function decorateFantasyDraftCards(){
+  if(!fantasyDraftLeagueCache.length)return;
+  installFantasyDraftCardStyles();
+  const cards=fantasyLeagueCards();if(!cards.length)return;
+  let liveCard:HTMLElement|null=null;
+  for(const card of cards){
+    const code=normalizeFantasyCode(String(card.textContent||'').match(/BKF-[A-Z0-9]{5}/i)?.[0]||'');
+    const league=fantasyDraftLeagueCache.find(l=>normalizeFantasyCode(String(l.code||''))===code);if(!league)continue;
+    const draft=league.fantasy_draft;
+    const live=fantasyDraftIsLive(draft);
+    const scheduledMs=draft?.scheduled_at?new Date(draft.scheduled_at).getTime():NaN;
+    const future=Boolean(draft?.scheduled_at&&Number.isFinite(scheduledMs)&&scheduledMs>Date.now());
+    const round=Math.max(1,Number(draft?.current_round||1));
+    const pick=Math.max(1,Number(draft?.current_pick||1));
+    const onClock=fantasyDraftOnClockName(league);
+    const signature=[live,future,draft?.status||'',draft?.scheduled_at||'',round,pick,draft?.current_member_id||''].join('|');
+    if(card.dataset.bkDraftSignature===signature){if(live)liveCard=card;continue;}
+    card.dataset.bkDraftSignature=signature;
+    card.querySelector('[data-bk-draft-banner]')?.remove();
+    card.querySelector('[data-bk-draft-footer]')?.remove();
+    card.removeAttribute('data-bk-draft-live');
+    card.style.border='';card.style.background='';card.style.boxShadow='';card.style.position='';card.style.overflow='';
+    const banner=document.createElement('div');banner.dataset.bkDraftBanner='1';
+    Object.assign(banner.style,{marginBottom:'14px',padding:'11px 12px',border:live?'1px solid rgba(34,197,94,.7)':future?'1px solid rgba(212,175,55,.5)':'1px solid rgba(113,113,122,.22)',background:live?'rgba(34,197,94,.10)':future?'rgba(212,175,55,.08)':'rgba(63,63,70,.10)'});
+    if(live)banner.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div style="display:flex;align-items:center;gap:8px;color:#22c55e;font-size:11px;font-weight:950;letter-spacing:.16em"><span class="bk-draft-live-dot" style="display:inline-block;width:8px;height:8px;border-radius:999px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.75)"></span>LIVE DRAFT</div><div style="font-size:10px;font-weight:900;color:#fff">ROUND ${round} • PICK ${pick}</div></div><div style="margin-top:6px;font-size:12px;font-weight:800;color:#d4d4d8">${onClock?`${onClock} is on the clock`:'Draft room is open now'}</div>`;
+    else if(future)banner.innerHTML=`<div style="font-size:10px;font-weight:950;letter-spacing:.14em;color:#D4AF37">DRAFT SCHEDULED</div><div style="margin-top:5px;font-size:12px;font-weight:850;color:#e4e4e7">${fantasyDraftTime(draft?.scheduled_at)}</div>`;
+    else banner.innerHTML='<div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:900;letter-spacing:.12em;color:#71717a"><span style="display:inline-block;width:7px;height:7px;border-radius:999px;background:#3f3f46"></span>NOT DRAFTING</div>';
+    card.insertBefore(banner,card.firstChild);
+    const oldOpen=Array.from(card.querySelectorAll<HTMLElement>('div')).find(el=>/Open League HQ/i.test(String(el.textContent||''))&&!el.dataset.bkDraftFooter);if(oldOpen)oldOpen.style.display='none';
+    const footer=document.createElement('div');footer.dataset.bkDraftFooter='1';Object.assign(footer.style,{marginTop:'14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',fontSize:'11px',fontWeight:'900'});
+    footer.innerHTML=live?'<span style="color:#22c55e">OPEN DRAFT HQ</span><span style="color:#22c55e;font-size:18px">→</span>':'<span style="color:#71717a">OPEN LEAGUE HQ</span><span style="color:#71717a;font-size:16px">→</span>';
+    card.appendChild(footer);
+    if(live){card.dataset.bkDraftLive='1';card.style.border='2px solid rgba(34,197,94,.8)';card.style.background='radial-gradient(circle at top right,rgba(34,197,94,.13),transparent 44%),#111';card.style.boxShadow='0 0 0 1px rgba(34,197,94,.12),0 16px 45px rgba(0,0,0,.3)';card.style.position='relative';card.style.overflow='hidden';liveCard=card;}
+    else if(future)card.style.border='1px solid rgba(212,175,55,.35)';
+  }
+  if(liveCard?.parentElement&&liveCard.parentElement.firstElementChild!==liveCard)liveCard.parentElement.insertBefore(liveCard,liveCard.parentElement.firstElementChild);
+}
+async function refreshFantasyDraftCards(){
+  if(fantasyDraftRefreshBusy)return;fantasyDraftRefreshBusy=true;
+  try{const result=await fantasyRequest('list');fantasyDraftLeagueCache=Array.isArray(result?.leagues)?result.leagues:[];decorateFantasyDraftCards();}
+  catch(error){console.warn('Fantasy live draft card status unavailable',error);}finally{fantasyDraftRefreshBusy=false;}
+}
+function installFantasyDraftCardStatus(){
+  installFantasyDraftCardStyles();void refreshFantasyDraftCards();
+  const root=document.getElementById('root');if(root){let queued=false;const observer=new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;decorateFantasyDraftCards();});});observer.observe(root,{childList:true,subtree:true});}
+  window.setInterval(()=>void refreshFantasyDraftCards(),10000);
+}
+
 function renderBallKnower(){
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
@@ -360,6 +456,7 @@ function renderBallKnower(){
   );
   installRealSoloTeamNames();
   installMaddenPlayerHeadshots();
+  installFantasyDraftCardStatus();
 }
 
 void syncCurrentTeams().finally(renderBallKnower);

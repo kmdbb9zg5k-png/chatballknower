@@ -29,6 +29,33 @@ const STORAGE_KEY_MUTED = 'bk_soundtrack_muted';
 const STORAGE_KEY_VOLUME = 'bk_soundtrack_volume';
 const STORAGE_KEY_TRACK = 'bk_soundtrack_track_idx';
 
+// The live Vercel loader flattens the normal utils wrapper import to the root
+// soundtrack module. Keep the newest tracks available here too so the live app
+// and normal bundled app expose the exact same playlist.
+const LIVE_EXTRA_TRACKS: SoundtrackTrack[] = [
+  {
+    id: 'boots-stay-clean',
+    title: 'Boots Stay Clean',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 100,
+    mood: 'Undefeated',
+    durationSec: 175,
+    audioUrl: 'https://cdn1.suno.ai/0d599a59-bdfd-4e8c-bee2-ac35f7cb87d7.mp3',
+  },
+  {
+    id: 'cant-break-me',
+    title: 'Can’t Break Me',
+    subtitle: 'elifromthesouth • Original Ball Knower Track',
+    tempoBpm: 100,
+    mood: 'Unbreakable',
+    durationSec: 152,
+    audioUrl: 'https://cdn1.suno.ai/8f1c1f2a-c8ff-46e4-b357-cf894688e3eb.mp3',
+  },
+];
+for (const track of LIVE_EXTRA_TRACKS) {
+  if (!SOUNDTRACK_TRACKS.some(existing => existing.id === track.id)) SOUNDTRACK_TRACKS.push(track);
+}
+
 export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     try {
@@ -61,8 +88,6 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isIntroActive, setIsIntroActive] = useState<boolean>(true);
   const hasEverStartedRef = useRef<boolean>(false);
 
-  // Keep React/UI state synchronized when the audio engine automatically
-  // advances from one completed song to the next.
   useEffect(() => {
     const handleTrackChange = (event: Event) => {
       const index = Number((event as CustomEvent<{ index?: number }>).detail?.index);
@@ -74,6 +99,38 @@ export const SoundtrackProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     window.addEventListener('ballknower-track-change', handleTrackChange as EventListener);
     return () => window.removeEventListener('ballknower-track-change', handleTrackChange as EventListener);
+  }, []);
+
+  // Favorite-team confirmation runs from the compatibility layer in the
+  // soundtrack engine. After a real confirmation, reload once so any observer
+  // created from the previous stored team cannot repaint the old theme. Wheel
+  // previews do not reload because localStorage has not changed yet.
+  useEffect(() => {
+    const favoriteKey = 'ballknower_favorite_team_v1';
+    const handleTeamChange = (event: Event) => {
+      const code = String((event as CustomEvent<{ code?: string }>).detail?.code || '');
+      if (!code) return;
+      let saved = '';
+      try { saved = localStorage.getItem(favoriteKey) || ''; } catch {}
+      const confirmVisible = Boolean(document.querySelector('[data-bk-team-confirm]'));
+      if (confirmVisible && saved === code) {
+        window.setTimeout(() => window.location.reload(), 80);
+      }
+    };
+    const handleTeamClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('[data-bk-team-skip]')) return;
+      window.setTimeout(() => {
+        document.body.style.background = '#0A0A0A';
+        document.documentElement.removeAttribute('data-bk-favorite-team');
+      }, 40);
+    };
+    window.addEventListener('ballknower-favorite-team-change', handleTeamChange as EventListener);
+    document.addEventListener('click', handleTeamClick, true);
+    return () => {
+      window.removeEventListener('ballknower-favorite-team-change', handleTeamChange as EventListener);
+      document.removeEventListener('click', handleTeamClick, true);
+    };
   }, []);
 
   useEffect(() => {

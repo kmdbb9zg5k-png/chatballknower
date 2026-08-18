@@ -3,6 +3,9 @@ import { ensureOnlineSession, isCloudConfigured, supabase } from '../lib/supabas
 
 type UserLike = { id:string; name:string; avatarUrl?:string };
 
+const LEGACY_SEED_ID = 'league-ballers-2026';
+const LEAGUE_STORAGE_KEY = 'ballknower_leagues_v1';
+
 const leagueFromRows = (row:any, members:any[]):League => ({
   id: row.id,
   code: row.code,
@@ -32,6 +35,32 @@ const memberFromRow = (m:any):LeagueMember => ({
   submittedAt:m.submitted_at || undefined,
 });
 
+function readLegacySeed(authId?: string): League | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LEAGUE_STORAGE_KEY) || '[]');
+    const seed = Array.isArray(parsed) ? parsed.find((l:any) => l?.id === LEGACY_SEED_ID) : null;
+    if (!seed) return null;
+    if (!authId) return seed as League;
+    const members = Array.isArray(seed.members) ? [...seed.members] : [];
+    const commishIndex = Math.max(0, members.findIndex((m:any) => m?.isCommissioner));
+    if (members[commishIndex]) members[commishIndex] = { ...members[commishIndex], userId: authId };
+    return { ...seed, commissionerId: authId, members } as League;
+  } catch {
+    return null;
+  }
+}
+
+function writeLegacySeed(seed: League) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LEAGUE_STORAGE_KEY) || '[]');
+    const leagues = Array.isArray(parsed) ? parsed : [];
+    const next = [seed, ...leagues.filter((l:any) => l?.id !== LEGACY_SEED_ID)];
+    localStorage.setItem(LEAGUE_STORAGE_KEY, JSON.stringify(next));
+  } catch {}
+}
+
 async function fetchMembers(leagueIds:string[]) {
   if (!supabase || leagueIds.length===0) return [];
   const { data,error }=await supabase.from('ball_knower_league_members').select('*').in('league_id',leagueIds);
@@ -46,16 +75,19 @@ export async function loadMyCloudLeagues():Promise<League[]> {
     .select('league_id').eq('auth_user_id',user.id);
   if(mineError) throw mineError;
   const ids=[...new Set((mine||[]).map((x:any)=>x.league_id))] as string[];
-  if(!ids.length) return [];
+  const seed = readLegacySeed(user.id);
+  if(!ids.length) return seed ? [seed] : [];
   const {data:rows,error}=await supabase.from('ball_knower_leagues').select('*').in('id',ids).order('created_at',{ascending:false});
   if(error) throw error;
   const members=await fetchMembers(ids);
-  return (rows||[]).map((r:any)=>leagueFromRows(r,members.filter((m:any)=>m.league_id===r.id)));
+  const cloud = (rows||[]).map((r:any)=>leagueFromRows(r,members.filter((m:any)=>m.league_id===r.id)));
+  return seed ? [...cloud.filter(l => l.id !== LEGACY_SEED_ID), seed] : cloud;
 }
 
 export async function fetchCloudLeague(id:string):Promise<League|null> {
   if(!supabase) return null;
-  await ensureOnlineSession();
+  const auth = await ensureOnlineSession();
+  if (id === LEGACY_SEED_ID) return readLegacySeed(auth.id);
   const {data:row,error}=await supabase.from('ball_knower_leagues').select('*').eq('id',id).maybeSingle();
   if(error) throw error;
   if(!row) return null;
@@ -75,7 +107,6 @@ export async function createCloudLeague(name:string,maxMembers:number,salaryCap:
   const auth=await ensureOnlineSession();
   const id=crypto.randomUUID();
   let created:any=null;
-  // Retry a few times in the unlikely event of code collision.
   for(let tries=0;tries<5;tries++){
     const payload={
       id, code:code(), name:name.trim()||'Ball Knower League',
@@ -128,6 +159,16 @@ export async function joinCloudLeague(inviteCode:string,user:UserLike):Promise<L
 export async function saveMyCloudRoster(leagueId:string, roster:Player[], ratings:TeamRatings) {
   if(!supabase) return;
   const auth=await ensureOnlineSession();
+  if (leagueId === LEGACY_SEED_ID) {
+    const seed = readLegacySeed(auth.id);
+    if (!seed) return;
+    const submittedAt = new Date().toISOString();
+    const members = seed.members.map(m => m.isCommissioner || m.userId === auth.id
+      ? { ...m, userId: auth.id, status: 'ready' as const, roster, teamRatings: ratings, submittedAt }
+      : m);
+    writeLegacySeed({ ...seed, commissionerId: auth.id, members });
+    return;
+  }
   const {error}=await supabase.from('ball_knower_league_members').update({
     status:'ready', roster, team_ratings:ratings, submitted_at:new Date().toISOString()
   }).eq('league_id',leagueId).eq('auth_user_id',auth.id);
@@ -138,7 +179,20 @@ export async function updateCloudLeague(leagueId:string, patch:{
   salaryCap?:number; status?:string; seasonResult?:SeasonResult|null; settings?:any;
 }) {
   if(!supabase) return;
-  await ensureOnlineSession();
+  const auth = await ensureOnlineSession();
+  if (leagueId === LEGACY_SEED_ID) {
+    const seed = readLegacySeed(auth.id);
+    if (!seed) return;
+    const next: League = {
+      ...seed,
+      ...(patch.salaryCap !== undefined ? { salaryCap: patch.salaryCap } : {}),
+      ...(patch.status !== undefined ? { status: patch.status as any } : {}),
+      ...(patch.seasonResult !== undefined ? { seasonResult: patch.seasonResult || undefined } : {}),
+      ...(patch.settings !== undefined ? { settings: patch.settings } : {}),
+    };
+    writeLegacySeed(next);
+    return;
+  }
   const data:any={};
   if(patch.salaryCap!==undefined) data.salary_cap=patch.salaryCap;
   if(patch.status!==undefined) data.status=patch.status;
@@ -150,7 +204,14 @@ export async function updateCloudLeague(leagueId:string, patch:{
 
 export async function upsertAiCloudMembers(leagueId:string, members:LeagueMember[]) {
   if(!supabase || !members.length) return;
-  await ensureOnlineSession();
+  const auth = await ensureOnlineSession();
+  if (leagueId === LEGACY_SEED_ID) {
+    const seed = readLegacySeed(auth.id);
+    if (!seed) return;
+    const ids = new Set(members.map(m => m.id));
+    writeLegacySeed({ ...seed, members: [...seed.members.filter(m => !ids.has(m.id)), ...members] });
+    return;
+  }
   const rows=members.map(m=>({
     id:m.id, league_id:leagueId, auth_user_id:null, app_user_id:m.userId,
     user_name:m.userName, user_avatar:m.userAvatar||null, is_commissioner:false, is_ai:true,
@@ -163,13 +224,18 @@ export async function upsertAiCloudMembers(leagueId:string, members:LeagueMember
 
 export async function deleteCloudMember(leagueId:string,memberId:string) {
   if(!supabase) return;
-  await ensureOnlineSession();
+  const auth = await ensureOnlineSession();
+  if (leagueId === LEGACY_SEED_ID) {
+    const seed = readLegacySeed(auth.id);
+    if (seed) writeLegacySeed({ ...seed, members: seed.members.filter(m => m.id !== memberId) });
+    return;
+  }
   const {error}=await supabase.from('ball_knower_league_members').delete().eq('league_id',leagueId).eq('id',memberId);
   if(error) throw error;
 }
 
 export function subscribeToCloudLeague(leagueId:string,onChange:()=>void) {
-  if(!supabase) return ()=>{};
+  if(!supabase || leagueId === LEGACY_SEED_ID) return ()=>{};
   const channel=supabase.channel(`ball-knower-${leagueId}`)
     .on('postgres_changes',{event:'*',schema:'public',table:'ball_knower_leagues',filter:`id=eq.${leagueId}`},onChange)
     .on('postgres_changes',{event:'*',schema:'public',table:'ball_knower_league_members',filter:`league_id=eq.${leagueId}`},onChange)
